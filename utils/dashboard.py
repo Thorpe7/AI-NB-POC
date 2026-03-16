@@ -6,7 +6,11 @@ import warnings
 
 import ipywidgets as widgets
 from IPython.display import display
-from sidecar import Sidecar
+
+try:
+    from sidecar import Sidecar
+except ImportError:
+    Sidecar = None
 
 from utils.state import AppState
 from utils.components.app_bar import build_app_bar
@@ -18,7 +22,10 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def build_and_display_app():
-    """Build the full dashboard and display it in a JupyterLab side panel."""
+    """Build the full dashboard and display it in a JupyterLab side panel.
+
+    Falls back to cell output if sidecar is not installed.
+    """
 
     state = AppState()
     viewer = build_viewer(state)
@@ -34,6 +41,9 @@ def build_and_display_app():
         viewer["info_panel"],
     ])
 
-    sc = Sidecar(title="XNAT AI Assistant", anchor="split-right")
-    with sc:
+    if Sidecar is not None:
+        sc = Sidecar(title="XNAT AI Assistant", anchor="split-right")
+        with sc:
+            display(app)
+    else:
         display(app)
