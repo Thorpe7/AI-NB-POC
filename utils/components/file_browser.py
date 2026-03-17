@@ -35,7 +35,7 @@ def _error_card(msg):
 
 
 def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
-                   rows=15):
+                   on_clear=None, rows=15):
     """Build a generic file browser panel.
 
     Args:
@@ -46,6 +46,7 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
         on_file_click: callable(Path) -> str|None.  Called when a matching
             file is selected.  Return an error message string to display,
             or *None* on success.
+        on_clear: optional callable() invoked when the user clicks "Clear".
         rows: Number of visible rows in the Select widget.
 
     Returns:
@@ -66,6 +67,11 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
     )
     up_btn = widgets.Button(
         description="", icon="arrow-up",
+        layout=widgets.Layout(width="34px", height="30px"),
+    )
+    clear_btn = widgets.Button(
+        description="", icon="times",
+        tooltip="Clear selection",
         layout=widgets.Layout(width="34px", height="30px"),
     )
     breadcrumb = widgets.HTML(
@@ -164,10 +170,19 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
             else:
                 status.value = ""
 
+    def _on_clear_click(_btn):
+        if on_clear:
+            on_clear()
+        _refreshing[0] = True
+        file_list.value = None
+        _refreshing[0] = False
+        status.value = ""
+
     # ---- wire events -----------------------------------------------------
 
     go_btn.on_click(_on_go)
     up_btn.on_click(_on_up)
+    clear_btn.on_click(_on_clear_click)
     file_list.observe(_on_select, names="value")
 
     # Auto-browse on startup
@@ -180,7 +195,7 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
                 f"padding:0 0 4px;'>{title}</div>"
             ),
             widgets.HBox(
-                [root_text, up_btn, go_btn],
+                [root_text, up_btn, go_btn, clear_btn],
                 layout=widgets.Layout(width="100%"),
             ),
             breadcrumb,
@@ -249,12 +264,23 @@ def build_image_browser(state, viewer):
 
         return None
 
+    def _on_image_clear():
+        state.current_ds = None
+        state.current_png_bytes = None
+        state.current_file_name = ""
+        image_widget.layout.display = "none"
+        image_placeholder.layout.display = ""
+        image_label.value = ""
+        metadata_html.value = ""
+        info_panel.layout.display = "none"
+
     return _build_browser(
         title="&#x1F52C; Image Files",
         default_path="/data",
         file_filter=is_dicom_candidate,
         file_icon="\U0001F52C",
         on_file_click=_on_dicom_selected,
+        on_clear=_on_image_clear,
     )
 
 
@@ -286,10 +312,16 @@ def build_report_browser(state, viewer):
         )
         return None
 
+    def _on_report_clear():
+        state.report_text = ""
+        state.report_file_name = ""
+        report_display.value = ""
+
     return _build_browser(
         title="&#x1F4C4; Text Reports",
         default_path="/data",
         file_filter=_is_text_file,
         file_icon="\U0001F4C4",
         on_file_click=_on_text_selected,
+        on_clear=_on_report_clear,
     )
