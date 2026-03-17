@@ -198,7 +198,7 @@ def build_chat(state):
             response_area,
         ],
         layout=widgets.Layout(
-            width="45%", padding="0 0 0 16px",
+            flex="1", padding="0 0 0 16px",
             border_left="1px solid #e9ecef",
         ),
     )

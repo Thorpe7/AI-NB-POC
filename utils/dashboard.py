@@ -151,11 +151,28 @@ def build_and_display_app():
     )
     toggle_bar.add_class("medgemma-switch")
 
-    # Main content: viewer + chat side by side, metadata below
+    # Report content panel (between viewer and chat, hidden until a report is loaded)
+    report_content_panel = widgets.VBox(
+        [viewer["report_display"]],
+        layout=widgets.Layout(
+            flex="0.8",
+            padding="0 16px",
+            border_left="1px solid #e9ecef",
+            border_right="1px solid #e9ecef",
+            display="none",
+        ),
+    )
+
+    def _on_report_display_change(change):
+        report_content_panel.layout.display = "" if change["new"] else "none"
+
+    viewer["report_display"].observe(_on_report_display_change, names="value")
+
+    # Main content: viewer + report + chat side by side, metadata below
     main_content = widgets.VBox(
         [
             widgets.HBox(
-                [viewer["viewer_panel"], chat],
+                [viewer["viewer_panel"], report_content_panel, chat],
                 layout=widgets.Layout(min_height="450px"),
             ),
             viewer["info_panel"],

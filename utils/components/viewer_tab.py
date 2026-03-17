@@ -59,10 +59,9 @@ def build_viewer(state):
             image_label,
             image_placeholder,
             image_widget,
-            report_display,
         ],
         layout=widgets.Layout(
-            width="55%", padding="0 16px 0 0",
+            flex="1.2", padding="0 16px 0 0",
             min_height="400px",
         ),
     )
