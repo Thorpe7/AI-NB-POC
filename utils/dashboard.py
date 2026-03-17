@@ -125,8 +125,24 @@ def build_and_display_app():
     image_toggle.observe(_on_image_toggle, names="value")
     report_toggle.observe(_on_report_toggle, names="value")
 
+    browser_toggle = widgets.Checkbox(
+        value=True,
+        description="Show Browsers",
+        indent=False,
+    )
+
+    def _on_browser_toggle(change):
+        if change["new"]:
+            image_browser.layout.display = "" if image_toggle.value else "none"
+            report_browser.layout.display = "" if report_toggle.value else "none"
+        else:
+            image_browser.layout.display = "none"
+            report_browser.layout.display = "none"
+
+    browser_toggle.observe(_on_browser_toggle, names="value")
+
     toggle_bar = widgets.HBox(
-        [image_toggle, report_toggle],
+        [image_toggle, report_toggle, browser_toggle],
         layout=widgets.Layout(
             padding="8px 16px",
             gap="24px",

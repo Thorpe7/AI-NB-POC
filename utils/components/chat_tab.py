@@ -92,7 +92,12 @@ def build_chat(state):
     payload_toggle_bar.add_class("medgemma-switch")
 
     spinner = widgets.HTML(value="")
-    payload_display = widgets.HTML(value="")
+    payload_display = widgets.HTML(value="", layout=widgets.Layout(display="none"))
+
+    def _on_payload_toggle(change):
+        payload_display.layout.display = "" if change["new"] else "none"
+
+    payload_toggle.observe(_on_payload_toggle, names="value")
     response_area = widgets.HTML(
         value=(
             "<div style='color:#6c757d;padding:24px;text-align:center;"
@@ -155,10 +160,9 @@ def build_chat(state):
                 )
             response_area.value = report_note + _chat_bubble(prompt, generated) + timing
 
-            if payload_toggle.value:
-                payload_display.value = _format_payload_summary(
-                    payload, has_report_context=bool(state.report_text)
-                )
+            payload_display.value = _format_payload_summary(
+                payload, has_report_context=bool(state.report_text)
+            )
 
         except botocore.exceptions.ClientError as e:
             code = e.response["Error"]["Code"]
