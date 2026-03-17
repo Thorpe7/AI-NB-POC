@@ -1,2 +1,3 @@
 .fastembed_cache/
 .claude
+__pycache__/
