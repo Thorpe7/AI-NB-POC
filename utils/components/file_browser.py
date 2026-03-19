@@ -244,7 +244,7 @@ def build_image_browser(state, viewer):
     metadata_html = viewer["metadata_html"]
     metadata_table = viewer["metadata_table"]
     info_panel = viewer["info_panel"]
-    slice_slider = viewer["slice_slider"]
+    series_nav = viewer["series_nav"]
     series_info_label = viewer["series_info_label"]
 
     def _clear_series_state():
@@ -253,8 +253,7 @@ def build_image_browser(state, viewer):
         state.series_png_cache = []
         state.series_index = 0
         state.series_dir_name = ""
-        slice_slider.layout.display = "none"
-        series_info_label.layout.display = "none"
+        series_nav.layout.display = "none"
 
     def _on_dicom_selected(file_path):
         _clear_series_state()
@@ -367,17 +366,14 @@ def build_image_browser(state, viewer):
             f" &mdash; {len(datasets)} slices</div>"
         )
 
-        # Configure slider
-        slice_slider.max = len(datasets) - 1
-        slice_slider.value = 0
-        slice_slider.layout.display = ""
-
-        # Series info label
+        # Show series navigation
+        series_nav.layout.display = ""
+        series_info_label.layout.display = ""
         series_info_label.value = (
-            f"<div style='font-size:12px;color:#6c757d;padding:4px 0;'>"
+            f"<div style='font-size:12px;color:#6c757d;padding:4px 0;"
+            f"text-align:center;min-width:100px;'>"
             f"Slice 1 / {len(datasets)}</div>"
         )
-        series_info_label.layout.display = ""
 
         # Metadata from first slice
         meta_rows = extract_metadata(datasets[0])

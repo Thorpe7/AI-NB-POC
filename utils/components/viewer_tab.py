@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipywidgets as widgets
+from ipyevents import Event
 
 from utils.dicom_utils import extract_metadata
 
@@ -60,46 +61,73 @@ def build_viewer(state):
         value="",
         layout=widgets.Layout(display="none"),
     )
-    slice_slider = widgets.IntSlider(
-        min=0, max=0, value=0,
-        description="Slice:",
-        layout=widgets.Layout(width="100%", display="none"),
+
+    prev_btn = widgets.Button(
+        description="", icon="arrow-left",
+        layout=widgets.Layout(width="40px", height="30px"),
+    )
+    next_btn = widgets.Button(
+        description="", icon="arrow-right",
+        layout=widgets.Layout(width="40px", height="30px"),
+    )
+    series_nav = widgets.HBox(
+        [prev_btn, series_info_label, next_btn],
+        layout=widgets.Layout(
+            display="none", align_items="center",
+            justify_content="center", width="100%", padding="4px 0",
+        ),
     )
 
-    _slider_guard = [False]
-
-    def _on_slider_change(change):
-        if _slider_guard[0]:
+    def _go_to_slice(idx):
+        """Navigate to a specific slice index, updating all state and UI."""
+        total = len(state.series_datasets)
+        if total == 0 or idx < 0 or idx >= total:
             return
-        idx = change["new"]
-        if not state.series_datasets or idx >= len(state.series_datasets):
-            return
-
         state.series_index = idx
         ds, png = state.series_datasets[idx], state.series_png_cache[idx]
         state.current_ds = ds
         state.current_png_bytes = png
-        state.current_file_name = f"{state.series_dir_name} [{idx + 1}/{len(state.series_datasets)}]"
+        state.current_file_name = f"{state.series_dir_name} [{idx + 1}/{total}]"
 
         image_widget.value = png
         series_info_label.value = (
-            f"<div style='font-size:12px;color:#6c757d;padding:4px 0;'>"
-            f"Slice {idx + 1} / {len(state.series_datasets)}</div>"
+            f"<div style='font-size:12px;color:#6c757d;padding:4px 0;"
+            f"text-align:center;min-width:100px;'>"
+            f"Slice {idx + 1} / {total}</div>"
         )
 
         meta_rows = extract_metadata(ds)
         if meta_rows:
             metadata_html.value = _metadata_table(meta_rows)
 
-    slice_slider.observe(_on_slider_change, names="value")
+    def _on_prev(_btn):
+        _go_to_slice(state.series_index - 1)
+
+    def _on_next(_btn):
+        _go_to_slice(state.series_index + 1)
+
+    prev_btn.on_click(_on_prev)
+    next_btn.on_click(_on_next)
+
+    # Scroll-wheel support via ipyevents on the image widget
+    _wheel_event = Event(source=image_widget, watched_events=["wheel"])
+    _wheel_event.prevent_default_action = True
+
+    def _on_wheel(event):
+        dy = event.get("deltaY", 0)
+        if dy > 0:
+            _go_to_slice(state.series_index + 1)
+        elif dy < 0:
+            _go_to_slice(state.series_index - 1)
+
+    _wheel_event.on_dom_event(_on_wheel)
 
     viewer_panel = widgets.VBox(
         [
             image_label,
             image_placeholder,
             image_widget,
-            series_info_label,
-            slice_slider,
+            series_nav,
         ],
         layout=widgets.Layout(
             flex="1.2", padding="0 16px 0 0",
@@ -128,6 +156,7 @@ def build_viewer(state):
         "report_display": report_display,
         "metadata_html": metadata_html,
         "metadata_table": _metadata_table,
-        "slice_slider": slice_slider,
+        "series_nav": series_nav,
         "series_info_label": series_info_label,
+        "go_to_slice": _go_to_slice,
     }
