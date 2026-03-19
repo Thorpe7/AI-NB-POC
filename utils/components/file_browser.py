@@ -199,9 +199,9 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
     # Auto-browse on startup
     _on_go()
 
-    controls_children = [root_text, up_btn, go_btn, clear_btn]
+    bottom_controls = [go_btn, clear_btn]
     if extra_controls:
-        controls_children.extend(extra_controls)
+        bottom_controls.extend(extra_controls)
 
     panel = widgets.VBox(
         [
@@ -210,11 +210,15 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
                 f"padding:0 0 4px;'>{title}</div>"
             ),
             widgets.HBox(
-                controls_children,
+                [root_text, up_btn],
                 layout=widgets.Layout(width="100%"),
             ),
             breadcrumb,
             file_list,
+            widgets.HBox(
+                bottom_controls,
+                layout=widgets.Layout(width="100%", padding="4px 0 0 0"),
+            ),
             status,
         ],
         layout=widgets.Layout(
