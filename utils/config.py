@@ -1,7 +1,7 @@
 """Endpoint and credential configuration for the Medical AI POC."""
 
 # Hardcoded for this POC. A configuration UI is coming soon.
-ENDPOINT_NAME = "medgemma-endpoint"
+ENDPOINT_NAME = "ai-poc-endpoint"
 REGION = "us-east-1"
 CONTENT_TYPE = "application/json"
 

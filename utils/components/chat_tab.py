@@ -544,7 +544,7 @@ def build_chat(state):
                 '<span style="font-size:13px;color:#6c757d;">'
                 'Converting DICOM to NIfTI...</span></div>'
             )
-            datasets = [ds for ds, _png in state.series_datasets]
+            datasets = list(state.series_datasets)
             nifti_bytes = dicom_series_to_nifti_bytes(datasets)
 
             spinner.value = (
