@@ -38,26 +38,40 @@ def _dynamic_window(pixels):
     return mean, max(std * 4.0, 1.0)
 
 
+def _has_voi_lut_sequence(ds):
+    """Return True if ds has a non-empty VOILUTSequence (non-linear LUT)."""
+    seq = getattr(ds, "VOILUTSequence", None)
+    return seq is not None and len(seq) > 0
+
+
+def _percentile_normalize(arr, lo_pct=1.0, hi_pct=99.0):
+    """Normalize to [0,1] using percentile clipping (outlier-robust)."""
+    lo, hi = np.percentile(arr, [lo_pct, hi_pct])
+    if hi - lo < 1e-6:
+        lo, hi = float(arr.min()), float(arr.max())
+    if hi - lo < 1e-6:
+        return np.zeros_like(arr, dtype=np.float64)
+    return np.clip((arr - lo) / (hi - lo), 0.0, 1.0)
+
+
 def apply_windowing(ds):
     """Apply VOI LUT or manual windowing, return float64 array in [0, 1]."""
     pixels = ds.pixel_array.astype(np.float64)
 
-    # Try pydicom's VOI LUT first (handles LUT tables + linear windows)
-    try:
-        windowed = apply_voi_lut(pixels, ds).astype(np.float64)
-        lo, hi = windowed.min(), windowed.max()
-        if hi - lo > 0:
-            return (windowed - lo) / (hi - lo)
-    except Exception:
-        pass
+    # Path A: Non-linear VOI LUT sequence (rare — sigmoid/table LUT)
+    if _has_voi_lut_sequence(ds):
+        try:
+            windowed = apply_voi_lut(pixels, ds).astype(np.float64)
+            return _percentile_normalize(windowed)
+        except Exception:
+            pass
 
-    # Manual fallback using DICOM metadata or modality defaults
+    # Path B: Linear window/level (common case)
     modality = str(getattr(ds, "Modality", ""))
     wc = getattr(ds, "WindowCenter", None)
     ww = getattr(ds, "WindowWidth", None)
 
     if wc is not None and ww is not None:
-        # Handle MultiValue — take first element
         if hasattr(wc, "__iter__") and not isinstance(wc, str):
             wc, ww = float(wc[0]), float(ww[0])
         else:
