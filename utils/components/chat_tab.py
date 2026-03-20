@@ -14,7 +14,7 @@ from utils.config import CONTENT_TYPE, ENDPOINT_NAME
 
 # Model registry: display name → model ID sent in the payload
 _MODELS = {
-    "MedGemma": "google/medgemma-1.5-4b-it",
+    "MedGemma": "medgemma",
 }
 
 _SPINNER_HTML = (
@@ -139,7 +139,6 @@ def build_chat(state):
 
         send_button.disabled = True
         spinner.value = _SPINNER_HTML
-        payload_display.value = ""
 
         # Prepend report context if attached
         full_prompt = prompt
@@ -152,13 +151,17 @@ def build_chat(state):
         model_label = model_dropdown.value
         model_id = _MODELS[model_label]
 
+        payload = {
+            "text": full_prompt,
+            "image": base64.b64encode(state.current_png_bytes).decode("utf-8"),
+            "model_id": model_id,
+        }
+        payload_display.value = _format_payload_summary(
+            payload, has_report_context=bool(state.report_text)
+        )
+
         t0 = time.time()
         try:
-            payload = {
-                "text": full_prompt,
-                "image": base64.b64encode(state.current_png_bytes).decode("utf-8"),
-                "model_id": model_id,
-            }
             resp = state.sm_client.invoke_endpoint(
                 EndpointName=ENDPOINT_NAME,
                 ContentType=CONTENT_TYPE,
@@ -179,10 +182,6 @@ def build_chat(state):
                 )
             response_area.value = (
                 report_note + _chat_bubble(prompt, generated, model_label) + timing
-            )
-
-            payload_display.value = _format_payload_summary(
-                payload, has_report_context=bool(state.report_text)
             )
 
         except botocore.exceptions.ClientError as e:
