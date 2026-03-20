@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 from uuid import uuid4
 
 import numpy as np
@@ -17,6 +16,9 @@ def dicom_series_to_nifti_bytes(datasets: list) -> bytes:
     Returns:
         Gzipped NIfTI bytes ready for S3 upload.
     """
+    import tempfile
+    from pathlib import Path
+
     import nibabel as nib
 
     slices = [ds.pixel_array for ds in datasets]
@@ -25,23 +27,13 @@ def dicom_series_to_nifti_bytes(datasets: list) -> bytes:
     affine = _build_affine(datasets)
     img = nib.Nifti1Image(volume.astype(np.float32), affine)
 
-    buf = io.BytesIO()
-    nib.save(img, buf)  # saves as .nii (uncompressed) to BytesIO
-    # Re-save as gzipped
-    buf = io.BytesIO()
-    file_map = img.make_file_map({"image": buf, "header": buf})
-    img.to_file_map(file_map)
-
-    # Use nib's gzip writer for proper .nii.gz
-    import gzip
-
-    raw = io.BytesIO()
-    nib.save(img, raw)
-    raw.seek(0)
-    gz_buf = io.BytesIO()
-    with gzip.GzipFile(fileobj=gz_buf, mode="wb") as gz:
-        gz.write(raw.read())
-    return gz_buf.getvalue()
+    with tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        nib.save(img, str(tmp_path))
+        return tmp_path.read_bytes()
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 def _build_affine(datasets: list) -> np.ndarray:
