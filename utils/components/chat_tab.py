@@ -72,10 +72,12 @@ def _render_history(history, model_label):
         asst_msg = history[i + 1]["content"] if i + 1 < len(history) else "..."
         bubbles.append(_chat_bubble(user_msg, asst_msg, model_label))
     return (
-        "<div style='max-height:500px;overflow-y:auto;display:flex;"
+        "<div id='chat-scroll' style='max-height:500px;overflow-y:auto;display:flex;"
         "flex-direction:column;gap:16px;'>"
         + "".join(bubbles)
         + "</div>"
+        "<script>document.getElementById('chat-scroll').scrollTop = "
+        "document.getElementById('chat-scroll').scrollHeight;</script>"
     )
 
 
