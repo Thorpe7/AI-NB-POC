@@ -211,9 +211,15 @@ def build_chat(state):
                 {"role": "assistant", "content": generated},
             ]
 
+            # Debug: show response keys so we can verify session tracking
+            resp_keys = ", ".join(sorted(result.keys()))
+            sid_val = result.get("session_id", "<missing>")
+            turn_val = result.get("turn", "<missing>")
             timing = (
                 f"<div style='font-size:11px;color:#adb5bd;margin-top:8px;'>"
-                f"Response time: {elapsed:.1f}s</div>"
+                f"Response time: {elapsed:.1f}s &nbsp;|&nbsp; "
+                f"keys: [{resp_keys}] &nbsp;|&nbsp; "
+                f"session_id: {sid_val} &nbsp;|&nbsp; turn: {turn_val}</div>"
             )
             response_area.value = (
                 _render_history(state.chat_history, model_label) + timing
