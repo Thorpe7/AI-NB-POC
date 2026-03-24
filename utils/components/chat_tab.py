@@ -603,6 +603,15 @@ def build_chat(state):
                     fingerprint="test",
                 )
 
+            spinner.value = (
+                '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;">'
+                '<div style="width:18px;height:18px;border:2px solid #e0e0e0;'
+                'border-top-color:#1976d2;border-radius:50%;'
+                'animation:spin 0.8s linear infinite;"></div>'
+                '<span style="font-size:13px;color:#6c757d;">'
+                'Submitting inference job...</span></div>'
+            )
+
             payload = {
                 "model": "merlin",
                 "mode": mode_id,
