@@ -7,6 +7,7 @@ from pathlib import Path
 
 import ipywidgets as widgets
 
+from utils.components.file_browser import _build_browser
 from utils.config import LOCAL_DATA_ROOT
 from utils.dicom_utils import composite_overlay, dicom_to_pil, load_dicom_seg
 
@@ -77,7 +78,7 @@ def build_seg_viewer(state, viewer):
     """Build the SEG overlay panel.
 
     Observes `state.seg_file_path` (set by segmentation_tab's "Load overlay
-    in viewer" button) and also exposes a manual path field + "Use latest"
+    in viewer" button) and also exposes a file browser + "Use latest"
     shortcut so prior segmentations can be re-attached without re-running
     TotalSegmentator.
     """
@@ -87,18 +88,8 @@ def build_seg_viewer(state, viewer):
     _originals = [None]
     _overlay_pngs: dict[int, bytes] = {}
     _seg_cache = [None]
+    _current_seg_path: list[str | None] = [None]
 
-    path_text = widgets.Text(
-        value="",
-        placeholder=f"{_SEG_OUTPUT_ROOT}/<timestamp>/segmentations.dcm",
-        description="SEG:",
-        style={"description_width": "40px"},
-        layout=widgets.Layout(width="100%"),
-    )
-    load_btn = widgets.Button(
-        description="Load", icon="eye", button_style="primary",
-        layout=widgets.Layout(width="90px", height="30px"),
-    )
     latest_btn = widgets.Button(
         description="Use latest", icon="clock",
         tooltip=f"Pick the most recent segmentations.dcm under {_SEG_OUTPUT_ROOT}",
@@ -154,7 +145,7 @@ def build_seg_viewer(state, viewer):
         path_str = (path_str or "").strip()
         if not path_str:
             status_html.value = _error_card(
-                "Enter a SEG file path (or click \"Use latest\") before loading."
+                "Select a SEG file from the browser (or click \"Use latest\")."
             )
             return
         p = Path(path_str).expanduser()
@@ -211,6 +202,7 @@ def build_seg_viewer(state, viewer):
         _overlay_pngs.clear()
         _overlay_pngs.update(overlays)
         _seg_cache[0] = {"segments": segments, "matched": matched_counts}
+        _current_seg_path[0] = path_str
 
         if overlay_toggle.value:
             _apply_overlay_to_cache()
@@ -223,14 +215,17 @@ def build_seg_viewer(state, viewer):
         )
         legend_box.value = _legend_html(segments, matched_counts)
 
-    def _on_load(_btn):
+    def _load_new_seg(path_str):
         _restore_originals()
         _discard_overlay_state()
         status_html.value = ""
-        new_path = path_text.value.strip()
-        _apply_seg(new_path)
-        if new_path and new_path != state.seg_file_path:
-            state.seg_file_path = new_path
+        _apply_seg(path_str)
+        if path_str and path_str != state.seg_file_path:
+            state.seg_file_path = path_str
+
+    def _on_seg_file_clicked(file_path):
+        _load_new_seg(str(file_path))
+        return None
 
     def _on_latest(_btn):
         latest = _find_latest_seg()
@@ -239,14 +234,13 @@ def build_seg_viewer(state, viewer):
                 f"No segmentations found under {_SEG_OUTPUT_ROOT}."
             )
             return
-        path_text.value = str(latest)
-        _on_load(None)
+        _load_new_seg(str(latest))
 
     def _on_clear(_btn):
-        path_text.value = ""
         status_html.value = ""
         _restore_originals()
         _discard_overlay_state()
+        _current_seg_path[0] = None
         if state.seg_file_path:
             state.seg_file_path = ""
 
@@ -262,7 +256,7 @@ def build_seg_viewer(state, viewer):
     def _on_alpha_change(_change):
         if _seg_cache[0] is None or not state.series_datasets:
             return
-        current_path = path_text.value.strip()
+        current_path = _current_seg_path[0]
         if not current_path:
             return
         _restore_originals()
@@ -273,9 +267,8 @@ def build_seg_viewer(state, viewer):
         new_path = (change["new"] or "").strip()
         if not new_path:
             return
-        if new_path == path_text.value.strip():
+        if new_path == _current_seg_path[0]:
             return
-        path_text.value = new_path
         _restore_originals()
         _discard_overlay_state()
         status_html.value = ""
@@ -288,11 +281,10 @@ def build_seg_viewer(state, viewer):
             return
         _discard_overlay_state()
         status_html.value = ""
-        path_text.value = ""
+        _current_seg_path[0] = None
         if state.seg_file_path:
             state.seg_file_path = ""
 
-    load_btn.on_click(_on_load)
     latest_btn.on_click(_on_latest)
     clear_btn.on_click(_on_clear)
     overlay_toggle.observe(_on_toggle, names="value")
@@ -300,8 +292,19 @@ def build_seg_viewer(state, viewer):
     state.observe(_on_seg_path_state_change, names="seg_file_path")
     state.observe(_on_series_change, names="series_dir_path")
 
+    seg_browser = _build_browser(
+        title="&#x1F9E9; SEG Files",
+        default_path=_SEG_OUTPUT_ROOT,
+        file_filter=lambda p: p.suffix.lower() == ".dcm",
+        file_icon="\U0001F9E9",
+        on_file_click=_on_seg_file_clicked,
+        rows=8,
+    )
+    seg_browser.layout.width = "100%"
+    seg_browser.layout.min_width = "0"
+
     controls_row = widgets.HBox(
-        [load_btn, latest_btn, clear_btn],
+        [latest_btn, clear_btn],
         layout=widgets.Layout(gap="8px", padding="4px 0"),
     )
     toggle_row = widgets.HBox([overlay_toggle])
@@ -313,7 +316,7 @@ def build_seg_viewer(state, viewer):
                 "<div style='font-size:13px;font-weight:700;color:#495057;"
                 "padding:0 0 8px;'>Segmentation Overlay</div>"
             ),
-            path_text,
+            seg_browser,
             controls_row,
             toggle_row,
             alpha_slider,
