@@ -84,8 +84,14 @@ def build_viewer(state):
         description="", icon="arrow-right",
         layout=widgets.Layout(width="40px", height="30px"),
     )
+    slice_slider = widgets.IntSlider(
+        value=0, min=0, max=0, step=1,
+        description="", readout=False, continuous_update=True,
+        layout=widgets.Layout(flex="1", margin="0 12px"),
+    )
+    _syncing_slider = [False]
     series_nav = widgets.HBox(
-        [prev_btn, series_info_label, next_btn],
+        [prev_btn, slice_slider, series_info_label, next_btn],
         layout=widgets.Layout(
             display="none", align_items="center",
             justify_content="center", width="100%", padding="4px 0",
@@ -110,6 +116,13 @@ def build_viewer(state):
             f"Slice {idx + 1} / {total}</div>"
         )
 
+        if slice_slider.value != idx:
+            _syncing_slider[0] = True
+            try:
+                slice_slider.value = idx
+            finally:
+                _syncing_slider[0] = False
+
         meta_rows = extract_metadata(ds)
         if meta_rows:
             metadata_html.value = _metadata_table(meta_rows)
@@ -120,8 +133,24 @@ def build_viewer(state):
     def _on_next(_btn):
         _go_to_slice(state.series_index + 1)
 
+    def _on_slider(change):
+        if _syncing_slider[0]:
+            return
+        _go_to_slice(int(change["new"]))
+
+    def _on_series_datasets_change(_change):
+        total = len(state.series_datasets)
+        _syncing_slider[0] = True
+        try:
+            slice_slider.max = max(0, total - 1)
+            slice_slider.value = min(state.series_index, max(0, total - 1))
+        finally:
+            _syncing_slider[0] = False
+
     prev_btn.on_click(_on_prev)
     next_btn.on_click(_on_next)
+    slice_slider.observe(_on_slider, names="value")
+    state.observe(_on_series_datasets_change, names="series_datasets")
 
     # Scroll-wheel + arrow-key nav via ipyevents on the image container box.
     # Attaching events to a Box (<div>) is more reliable than attaching to the
