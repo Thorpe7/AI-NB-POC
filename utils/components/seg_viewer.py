@@ -6,6 +6,7 @@ import io
 from pathlib import Path
 
 import ipywidgets as widgets
+import numpy as np
 from PIL import Image
 
 from utils.components.file_browser import _build_browser
@@ -91,6 +92,11 @@ def build_seg_viewer(state, viewer):
     _seg_cache = [None]
     _current_seg_path: list[str | None] = [None]
     _selected_seg_path: list[str | None] = [None]
+    # Orientation controls, applied to every mask before compositing so all
+    # slices share the same transform.
+    _rotation = [0]  # number of 90° CCW turns
+    _flip_h = [False]
+    _flip_v = [False]
 
     use_mask_btn = widgets.Button(
         description="Use mask", icon="check", button_style="primary",
@@ -105,6 +111,21 @@ def build_seg_viewer(state, viewer):
     )
     clear_btn = widgets.Button(
         description="Clear", icon="times",
+        layout=widgets.Layout(width="80px", height="30px"),
+    )
+    rotate_btn = widgets.Button(
+        description="Rotate 90°", icon="redo",
+        tooltip="Rotate overlays 90° CCW (cycles 0/90/180/270)",
+        layout=widgets.Layout(width="110px", height="30px"),
+    )
+    flip_h_btn = widgets.Button(
+        description="Flip H", icon="arrows-h",
+        tooltip="Mirror overlays horizontally",
+        layout=widgets.Layout(width="80px", height="30px"),
+    )
+    flip_v_btn = widgets.Button(
+        description="Flip V", icon="arrows-v",
+        tooltip="Mirror overlays vertically",
         layout=widgets.Layout(width="80px", height="30px"),
     )
     overlay_toggle = widgets.Checkbox(
@@ -149,6 +170,21 @@ def build_seg_viewer(state, viewer):
                 cache[idx] = png
         _refresh_image()
 
+    def _transform_masks(masks):
+        if not _flip_h[0] and not _flip_v[0] and _rotation[0] == 0:
+            return masks
+        out = {}
+        for k, m in masks.items():
+            mm = m
+            if _flip_h[0]:
+                mm = np.fliplr(mm)
+            if _flip_v[0]:
+                mm = np.flipud(mm)
+            if _rotation[0]:
+                mm = np.rot90(mm, _rotation[0])
+            out[k] = mm
+        return out
+
     def _apply_seg(path_str):
         path_str = (path_str or "").strip()
         if not path_str:
@@ -189,6 +225,7 @@ def build_seg_viewer(state, viewer):
                 masks = by_sop.get(str(sop))
                 if not masks:
                     continue
+                masks = _transform_masks(masks)
                 # Composite onto the cached PNG (what the user actually sees)
                 # instead of re-rendering from the DICOM. This guarantees the
                 # overlay is blended on the same pixels shown in the viewer.
@@ -294,6 +331,29 @@ def build_seg_viewer(state, viewer):
         _discard_overlay_state()
         _apply_seg(current_path)
 
+    def _reapply_current():
+        current_path = _current_seg_path[0]
+        if not current_path:
+            return
+        _restore_originals()
+        _discard_overlay_state()
+        _apply_seg(current_path)
+
+    def _on_rotate(_btn):
+        _rotation[0] = (_rotation[0] + 1) % 4
+        rotate_btn.button_style = "info" if _rotation[0] else ""
+        _reapply_current()
+
+    def _on_flip_h(_btn):
+        _flip_h[0] = not _flip_h[0]
+        flip_h_btn.button_style = "info" if _flip_h[0] else ""
+        _reapply_current()
+
+    def _on_flip_v(_btn):
+        _flip_v[0] = not _flip_v[0]
+        flip_v_btn.button_style = "info" if _flip_v[0] else ""
+        _reapply_current()
+
     def _on_seg_path_state_change(change):
         new_path = (change["new"] or "").strip()
         if not new_path:
@@ -321,6 +381,9 @@ def build_seg_viewer(state, viewer):
     use_mask_btn.on_click(_on_use_mask)
     latest_btn.on_click(_on_latest)
     clear_btn.on_click(_on_clear)
+    rotate_btn.on_click(_on_rotate)
+    flip_h_btn.on_click(_on_flip_h)
+    flip_v_btn.on_click(_on_flip_v)
     overlay_toggle.observe(_on_toggle, names="value")
     alpha_slider.observe(_on_alpha_change, names="value")
     state.observe(_on_seg_path_state_change, names="seg_file_path")
@@ -341,6 +404,10 @@ def build_seg_viewer(state, viewer):
         [use_mask_btn, latest_btn, clear_btn],
         layout=widgets.Layout(gap="8px", padding="4px 0"),
     )
+    orient_row = widgets.HBox(
+        [rotate_btn, flip_h_btn, flip_v_btn],
+        layout=widgets.Layout(gap="8px", padding="4px 0"),
+    )
     toggle_row = widgets.HBox([overlay_toggle])
     toggle_row.add_class("medgemma-switch")
 
@@ -352,6 +419,7 @@ def build_seg_viewer(state, viewer):
             ),
             seg_browser,
             controls_row,
+            orient_row,
             toggle_row,
             alpha_slider,
             status_html,
