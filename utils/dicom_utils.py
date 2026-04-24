@@ -238,10 +238,10 @@ def load_dicom_seg(path):
         seg_num = _segment_number(fg)
         if sop_uid is None or seg_num is None:
             continue
-        # TotalSegmentator writes SEG via nibabel (RAS), which flips the
-        # row axis relative to the source DICOM's pixel data. Undo that so
-        # the mask lines up with the displayed image.
-        mask = np.flipud(frames[i]).astype(bool)
+        # TotalSegmentator writes SEG via nibabel (RAS), which is rotated
+        # 180° relative to the source DICOM's pixel data. Undo that so the
+        # mask lines up with the displayed image.
+        mask = np.rot90(frames[i], 2).astype(bool)
         if not mask.any():
             continue
         by_source_sop.setdefault(sop_uid, {})[seg_num] = mask
