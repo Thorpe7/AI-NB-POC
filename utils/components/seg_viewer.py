@@ -133,23 +133,29 @@ def build_seg_viewer(state, viewer):
         legend_box.value = ""
 
     def _restore_originals():
-        if _originals[0] is not None and state.series_datasets:
-            state.series_png_cache = list(_originals[0])
-            _refresh_image()
+        if _originals[0] is None or not state.series_datasets:
+            return
+        originals = _originals[0]
+        cache = state.series_png_cache
+        for idx in range(min(len(originals), len(cache))):
+            cache[idx] = originals[idx]
+        _refresh_image()
 
     def _apply_overlay_to_cache():
         if _originals[0] is None or not _overlay_pngs:
             return
-        new_cache = list(_originals[0])
+        cache = state.series_png_cache
         for idx, png in _overlay_pngs.items():
-            if 0 <= idx < len(new_cache):
-                new_cache[idx] = png
-        state.series_png_cache = new_cache
+            if 0 <= idx < len(cache):
+                cache[idx] = png
         _refresh_image()
 
     def _apply_seg(path_str):
         path_str = (path_str or "").strip()
         if not path_str:
+            status_html.value = _error_card(
+                "Enter a SEG file path (or click \"Use latest\") before loading."
+            )
             return
         p = Path(path_str).expanduser()
         if not p.is_file():
@@ -172,22 +178,26 @@ def build_seg_viewer(state, viewer):
         segments = seg["segments"]
         alpha = float(alpha_slider.value)
 
-        snapshot = list(state.series_png_cache)
-        overlays: dict[int, bytes] = {}
-        matched_counts: dict[int, int] = {}
+        try:
+            snapshot = list(state.series_png_cache)
+            overlays: dict[int, bytes] = {}
+            matched_counts: dict[int, int] = {}
 
-        for idx, ds in enumerate(state.series_datasets):
-            sop = getattr(ds, "SOPInstanceUID", None)
-            if not sop:
-                continue
-            masks = by_sop.get(str(sop))
-            if not masks:
-                continue
-            base = dicom_to_pil(ds)
-            composited = composite_overlay(base, masks, segments, alpha=alpha)
-            overlays[idx] = _pil_to_png_bytes(composited)
-            for seg_num in masks:
-                matched_counts[seg_num] = matched_counts.get(seg_num, 0) + 1
+            for idx, ds in enumerate(state.series_datasets):
+                sop = getattr(ds, "SOPInstanceUID", None)
+                if not sop:
+                    continue
+                masks = by_sop.get(str(sop))
+                if not masks:
+                    continue
+                base = dicom_to_pil(ds)
+                composited = composite_overlay(base, masks, segments, alpha=alpha)
+                overlays[idx] = _pil_to_png_bytes(composited)
+                for seg_num in masks:
+                    matched_counts[seg_num] = matched_counts.get(seg_num, 0) + 1
+        except Exception as e:
+            status_html.value = _error_card(f"Compositing failed: {e}")
+            return
 
         if not overlays:
             status_html.value = _error_card(
