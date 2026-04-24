@@ -25,3 +25,6 @@ class AppState(traitlets.HasTraits):
     series_index = traitlets.Int(default_value=0)
     series_dir_name = traitlets.Unicode(default_value="")
     series_dir_path = traitlets.Unicode(default_value="")
+
+    # Segmentation output (local-kernel path to a DICOM SEG file)
+    seg_file_path = traitlets.Unicode(default_value="")

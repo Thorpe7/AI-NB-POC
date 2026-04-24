@@ -12,6 +12,7 @@ from utils.components.app_bar import build_app_bar
 from utils.components.file_browser import build_image_browser, build_report_browser
 from utils.components.viewer_tab import build_viewer
 from utils.components.chat_tab import build_chat
+from utils.components.segmentation_tab import build_segmentation
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -94,6 +95,13 @@ def build_and_display_app():
     state = AppState()
     viewer = build_viewer(state)
     chat = build_chat(state)
+    segmentation = build_segmentation(state)
+    action_tabs = widgets.Tab(
+        children=[chat, segmentation],
+        layout=widgets.Layout(flex="1"),
+    )
+    action_tabs.set_title(0, "Chat")
+    action_tabs.set_title(1, "Segmentation")
     header = build_app_bar()
 
     image_browser = build_image_browser(state, viewer)
@@ -168,11 +176,12 @@ def build_and_display_app():
 
     viewer["report_display"].observe(_on_report_display_change, names="value")
 
-    # Main content: viewer + report + chat side by side, metadata below
+    # Main content: viewer + report + action tabs (chat, segmentation) side by
+    # side, metadata below
     main_content = widgets.VBox(
         [
             widgets.HBox(
-                [viewer["viewer_panel"], report_content_panel, chat],
+                [viewer["viewer_panel"], report_content_panel, action_tabs],
                 layout=widgets.Layout(min_height="450px"),
             ),
             viewer["info_panel"],
