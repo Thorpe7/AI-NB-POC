@@ -13,8 +13,18 @@ from utils.dicom_utils import (
     dicom_to_png_bytes,
     extract_metadata,
     is_dicom_candidate,
+    is_nifti_file,
     load_series,
     read_dicom,
+)
+
+_NIFTI_MESSAGE_HTML = (
+    "<div style='display:flex;align-items:center;justify-content:center;"
+    "width:100%;min-height:350px;background:#f8f9fa;border-radius:8px;"
+    "border:2px dashed #dee2e6;color:#6c757d;font-size:14px;"
+    "flex-direction:column;gap:8px;'>"
+    "<span style='font-size:36px;opacity:0.5;'>&#129504;</span>"
+    "<span>NIfTI files are not currently displayable.</span></div>"
 )
 
 _TEXT_EXTENSIONS = {
@@ -248,6 +258,8 @@ def build_image_browser(state, viewer):
     series_nav = viewer["series_nav"]
     series_info_label = viewer["series_info_label"]
 
+    _default_placeholder_html = image_placeholder.value
+
     def _clear_series_state():
         """Reset all series-related state and hide series UI."""
         state.series_datasets = []
@@ -257,7 +269,24 @@ def build_image_browser(state, viewer):
         state.series_dir_path = ""
         series_nav.layout.display = "none"
 
-    def _on_dicom_selected(file_path):
+    def _on_image_selected(file_path):
+        if is_nifti_file(file_path):
+            _clear_series_state()
+            state.current_ds = None
+            state.current_png_bytes = None
+            state.current_file_name = file_path.name
+            state.current_file_path = ""
+            image_widget.layout.display = "none"
+            image_placeholder.value = _NIFTI_MESSAGE_HTML
+            image_placeholder.layout.display = ""
+            image_label.value = (
+                f"<div style='font-size:13px;color:#495057;padding:0 0 8px;'>"
+                f"&#129504; <b>{file_path.name}</b></div>"
+            )
+            metadata_html.value = ""
+            info_panel.layout.display = "none"
+            return None
+
         _clear_series_state()
 
         ds = read_dicom(file_path)
@@ -305,6 +334,7 @@ def build_image_browser(state, viewer):
         state.current_file_name = ""
         state.current_file_path = ""
         image_widget.layout.display = "none"
+        image_placeholder.value = _default_placeholder_html
         image_placeholder.layout.display = ""
         image_label.value = ""
         metadata_html.value = ""
@@ -396,9 +426,9 @@ def build_image_browser(state, viewer):
     return _build_browser(
         title="&#x1F52C; Image Files",
         default_path=LOCAL_DATA_ROOT,
-        file_filter=is_dicom_candidate,
+        file_filter=lambda p: is_dicom_candidate(p) or is_nifti_file(p),
         file_icon="\U0001F52C",
-        on_file_click=_on_dicom_selected,
+        on_file_click=_on_image_selected,
         on_clear=_on_image_clear,
         extra_controls=[open_series_btn],
         on_dir_change=_on_dir_change,

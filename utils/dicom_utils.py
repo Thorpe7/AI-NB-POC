@@ -37,6 +37,14 @@ def is_dicom_candidate(p):
     return p.suffix.lower() not in _KNOWN_NON_DICOM
 
 
+def is_nifti_file(p):
+    """Check if a path is a NIfTI file (.nii or .nii.gz)."""
+    if p.is_dir():
+        return False
+    name = p.name.lower()
+    return name.endswith(".nii") or name.endswith(".nii.gz")
+
+
 def read_dicom(path):
     """Read a DICOM file, return Dataset or None on failure."""
     try:
