@@ -238,7 +238,10 @@ def load_dicom_seg(path):
         seg_num = _segment_number(fg)
         if sop_uid is None or seg_num is None:
             continue
-        mask = frames[i].astype(bool)
+        # TotalSegmentator writes SEG via nibabel (RAS), which flips the
+        # row axis relative to the source DICOM's pixel data. Undo that so
+        # the mask lines up with the displayed image.
+        mask = np.flipud(frames[i]).astype(bool)
         if not mask.any():
             continue
         by_source_sop.setdefault(sop_uid, {})[seg_num] = mask
@@ -251,12 +254,16 @@ def load_dicom_seg(path):
 
 
 def composite_overlay(base_pil, segment_masks, segments, alpha=0.4):
-    """Blend colored segmentation masks onto a grayscale base image.
+    """Blend colored segmentation masks onto a base image.
 
     base_pil:       PIL.Image (any mode; converted to RGB internally)
     segment_masks:  {segment_number: bool ndarray (H, W)} for this slice; may be empty
     segments:       {segment_number: {"label": str, "color": (r, g, b)}}
     alpha:          overlay opacity, 0..1
+
+    Masks whose shape differs from the base are resampled with
+    nearest-neighbor so SEGs produced at a resampled resolution
+    (e.g. TotalSegmentator --fast) still render correctly.
 
     Returns an RGB PIL.Image.
     """
@@ -268,7 +275,10 @@ def composite_overlay(base_pil, segment_masks, segments, alpha=0.4):
 
     for seg_num, mask in segment_masks.items():
         if mask.shape != (h, w):
-            continue
+            mask_pil = Image.fromarray(
+                (mask.astype(np.uint8) * 255), mode="L"
+            ).resize((w, h), Image.NEAREST)
+            mask = np.array(mask_pil) > 127
         color = np.array(segments[seg_num]["color"], dtype=np.float32)
         base_rgb[mask] = (1.0 - alpha) * base_rgb[mask] + alpha * color
 

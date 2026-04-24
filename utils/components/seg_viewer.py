@@ -6,10 +6,11 @@ import io
 from pathlib import Path
 
 import ipywidgets as widgets
+from PIL import Image
 
 from utils.components.file_browser import _build_browser
 from utils.config import LOCAL_DATA_ROOT
-from utils.dicom_utils import composite_overlay, dicom_to_pil, load_dicom_seg
+from utils.dicom_utils import composite_overlay, load_dicom_seg
 
 _SEG_OUTPUT_ROOT = str(Path(LOCAL_DATA_ROOT) / "resources" / "output" / "totalseg")
 
@@ -188,7 +189,10 @@ def build_seg_viewer(state, viewer):
                 masks = by_sop.get(str(sop))
                 if not masks:
                     continue
-                base = dicom_to_pil(ds)
+                # Composite onto the cached PNG (what the user actually sees)
+                # instead of re-rendering from the DICOM. This guarantees the
+                # overlay is blended on the same pixels shown in the viewer.
+                base = Image.open(io.BytesIO(snapshot[idx]))
                 composited = composite_overlay(base, masks, segments, alpha=alpha)
                 overlays[idx] = _pil_to_png_bytes(composited)
                 for seg_num in masks:
