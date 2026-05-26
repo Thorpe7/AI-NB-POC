@@ -1,0 +1,7 @@
+{
+  "VoilaConfiguration": {
+    "theme": "light",
+    "strip_sources": true,
+    "template": "default"
+  }
+}
