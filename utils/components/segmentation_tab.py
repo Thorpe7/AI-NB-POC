@@ -106,6 +106,14 @@ def build_segmentation(state):
         layout=widgets.Layout(width="100%"),
     )
 
+    mask_tag_input = widgets.Text(
+        value="",
+        placeholder="Optional: high_thresh_v1",
+        description="Mask tag:",
+        style={"description_width": "90px"},
+        layout=widgets.Layout(width="100%"),
+    )
+
     run_button = widgets.Button(
         description="Run Segmentation",
         icon="cog",
@@ -144,6 +152,7 @@ def build_segmentation(state):
         fast_checkbox_bar.layout.display = "none" if is_nsclc else ""
         roi_input.layout.display = "none" if is_nsclc else ""
         threshold_input.layout.display = "" if is_nsclc else "none"
+        mask_tag_input.layout.display = "" if is_nsclc else "none"
 
     task_dropdown.observe(_apply_task_visibility, names="value")
     _apply_task_visibility()
@@ -166,6 +175,9 @@ def build_segmentation(state):
                 "output_format": "dicom",
                 "threshold": float(threshold_input.value),
             }
+            tag = mask_tag_input.value.strip()
+            if tag:
+                payload["mask_tag"] = tag
             return payload, None
 
         payload = {"dicom_dir": dicom_dir, "fast": fast_checkbox.value}
@@ -245,6 +257,7 @@ def build_segmentation(state):
             fast_checkbox_bar,
             roi_input,
             threshold_input,
+            mask_tag_input,
             response_area,
             run_button,
             spinner,
