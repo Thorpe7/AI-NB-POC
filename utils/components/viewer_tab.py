@@ -32,7 +32,7 @@ def _metadata_table(rows):
 
 
 def build_viewer(state):
-    """Build image display, report display, and metadata widgets.
+    """Build image display and metadata widgets.
 
     Returns a dict with keys:
         viewer_panel      - VBox for the main viewer area
@@ -40,7 +40,6 @@ def build_viewer(state):
         image_widget      - Image widget (for cross-component updates)
         image_placeholder - HTML placeholder (hidden when content loaded)
         image_label       - HTML label showing filename
-        report_display    - HTML widget for attached report content
         metadata_html     - HTML widget for metadata table
         metadata_table    - formatter function for metadata rows
     """
@@ -68,7 +67,6 @@ def build_viewer(state):
         ),
     )
     image_label = widgets.HTML(value="")
-    report_display = widgets.HTML(value="")
     metadata_html = widgets.HTML(value="")
 
     series_info_label = widgets.HTML(
@@ -215,7 +213,6 @@ def build_viewer(state):
         "image_container": image_container,
         "image_placeholder": image_placeholder,
         "image_label": image_label,
-        "report_display": report_display,
         "metadata_html": metadata_html,
         "metadata_table": _metadata_table,
         "series_nav": series_nav,

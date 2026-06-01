@@ -116,15 +116,6 @@ def build_segmentation(state):
     spinner = widgets.HTML(value="")
     response_area = widgets.HTML(value=_PLACEHOLDER)
 
-    load_overlay_button = widgets.Button(
-        description="Load overlay in viewer",
-        icon="eye",
-        button_style="",
-        layout=widgets.Layout(width="100%", height="34px", display="none"),
-    )
-
-    last_local_seg_path = {"path": None}
-
     def _refresh_series_label(*_):
         n = len(state.series_datasets)
         if state.series_dir_name and n > 0:
@@ -191,8 +182,6 @@ def build_segmentation(state):
 
         model_name = TASKS[task_dropdown.value]
         run_button.disabled = True
-        load_overlay_button.layout.display = "none"
-        last_local_seg_path["path"] = None
         spinner.value = _SPINNER_HTML
         t0 = time.time()
 
@@ -212,16 +201,14 @@ def build_segmentation(state):
                     )
                     return
 
-            last_local_seg_path["path"] = local_seg
             predictor_elapsed = float(result.get("elapsed_s", 0.0))
             footer = (
                 f"<div style='font-size:11px;color:#adb5bd;margin-top:8px;'>"
                 f"Response time: {elapsed:.1f}s &nbsp;|&nbsp; "
-                f"Predictor: {predictor_elapsed:.1f}s</div>"
+                f"Predictor: {predictor_elapsed:.1f}s &nbsp;|&nbsp; "
+                f"Click <b>&#x21bb;</b> in the masks panel to load.</div>"
             )
             response_area.value = _response_card(result, local_seg) + footer
-            # Only offer the overlay when the predictor returned a loadable path.
-            load_overlay_button.layout.display = "" if local_seg else "none"
 
         except requests.Timeout:
             response_area.value = _error_card(
@@ -245,13 +232,7 @@ def build_segmentation(state):
             run_button.disabled = not state.series_dir_path
             spinner.value = ""
 
-    def _on_load_overlay(_btn):
-        if last_local_seg_path["path"] is None:
-            return
-        state.seg_file_path = last_local_seg_path["path"]
-
     run_button.on_click(_on_run)
-    load_overlay_button.on_click(_on_load_overlay)
 
     return widgets.VBox(
         [
@@ -267,7 +248,6 @@ def build_segmentation(state):
             response_area,
             run_button,
             spinner,
-            load_overlay_button,
         ],
         layout=widgets.Layout(
             flex="1", padding="0 0 0 16px",

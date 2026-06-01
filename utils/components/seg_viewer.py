@@ -1,4 +1,13 @@
-"""DICOM SEG overlay panel: composite segmentation masks onto the series viewer."""
+"""Auto-discovering masks panel for the loaded DICOM series.
+
+On series load, scans ``{state.series_dir_path}/../masks/*.dcm`` for DICOM SEG
+files and exposes one checkbox per file. Multiple masks can be enabled at
+once; they composite in checkbox order (later masks layer on top).
+
+SEGs with more than one labeled segment expand to a per-segment checkbox list
+so individual structures can be hidden. The opacity slider and orientation
+buttons (rotate, flip H, flip V) apply to every active overlay.
+"""
 
 from __future__ import annotations
 
@@ -9,38 +18,15 @@ import ipywidgets as widgets
 import numpy as np
 from PIL import Image
 
-from utils.components.file_browser import _build_browser
-from utils.config import LOCAL_DATA_ROOT
 from utils.dicom_utils import load_dicom_seg
 
-_SEG_OUTPUT_ROOT = str(Path(LOCAL_DATA_ROOT) / "resources" / "output" / "totalseg")
+_MASKS_SUBDIR = "masks"
 
 
 def _pil_to_png_bytes(img):
     buf = io.BytesIO()
-    # compress_level=1 is ~3-5x faster than the default (6) and keeps the
-    # output small enough for in-memory caching.
     img.save(buf, format="PNG", compress_level=1)
     return buf.getvalue()
-
-
-def _composite_cached(base_rgb, masks, segments, alpha):
-    """Composite masks onto a cached float32 RGB array; return PIL Image.
-
-    `base_rgb` is never mutated — we copy before blending so the cache stays
-    pristine for subsequent rotate/flip/alpha changes.
-    """
-    out = base_rgb.copy()
-    h, w = out.shape[:2]
-    for seg_num, mask in masks.items():
-        if mask.shape != (h, w):
-            mask_pil = Image.fromarray(
-                (mask.astype(np.uint8) * 255), mode="L"
-            ).resize((w, h), Image.NEAREST)
-            mask = np.array(mask_pil) > 127
-        color = np.array(segments[seg_num]["color"], dtype=np.float32)
-        out[mask] = (1.0 - alpha) * out[mask] + alpha * color
-    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), mode="RGB")
 
 
 def _error_card(msg):
@@ -50,93 +36,96 @@ def _error_card(msg):
     )
 
 
-def _success_card(msg):
+def _info_card(msg):
     return (
-        f"<div style='color:#2e7d32;background:#f1f8f4;padding:8px 10px;"
-        f"border-left:3px solid #2e7d32;border-radius:4px;font-size:12px;'>{msg}</div>"
+        f"<div style='color:#1565c0;background:#e8f4fd;padding:8px 10px;"
+        f"border-left:3px solid #1976d2;border-radius:4px;font-size:12px;'>{msg}</div>"
     )
 
 
-def _legend_html(segments, matched_counts):
-    if not segments:
-        return ""
-    items = []
-    for num in sorted(segments.keys()):
-        info = segments[num]
-        r, g, b = info["color"]
-        count = matched_counts.get(num, 0)
-        dim = "" if count else "opacity:0.45;"
-        items.append(
-            f"<li style='display:flex;align-items:center;gap:8px;"
-            f"font-size:12px;padding:3px 0;{dim}'>"
-            f"<span style='width:12px;height:12px;background:rgb({r},{g},{b});"
-            f"border-radius:2px;display:inline-block;flex-shrink:0;"
-            f"border:1px solid rgba(0,0,0,0.1);'></span>"
-            f"<span style='flex:1;'>{info['label']}</span>"
-            f"<span style='color:#6c757d;font-size:11px;'>{count} slice{'s' if count != 1 else ''}</span>"
-            f"</li>"
-        )
+def _muted_card(msg):
     return (
-        "<div style='font-size:12px;font-weight:600;color:#495057;"
-        "padding:6px 0 4px;'>Segments</div>"
-        "<ul style='list-style:none;padding:0;margin:0;max-height:220px;"
-        "overflow:auto;border:1px solid #e9ecef;border-radius:4px;"
-        "padding:6px 10px;background:#fafbfc;'>"
-        + "".join(items) + "</ul>"
+        f"<div style='color:#6c757d;background:#f8f9fa;padding:8px 10px;"
+        f"border-left:3px solid #adb5bd;border-radius:4px;font-size:12px;'>{msg}</div>"
     )
 
 
-def _find_latest_seg():
-    root = Path(_SEG_OUTPUT_ROOT)
-    if not root.is_dir():
-        return None
-    candidates = [p for p in root.glob("*/segmentations.dcm") if p.is_file()]
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return candidates[0]
+def _color_swatch(rgb):
+    r, g, b = rgb
+    return (
+        f"<span style='display:inline-block;width:11px;height:11px;"
+        f"background:rgb({r},{g},{b});border-radius:2px;"
+        f"border:1px solid rgba(0,0,0,0.15);vertical-align:middle;'></span>"
+    )
 
 
 def build_seg_viewer(state, viewer):
-    """Build the SEG overlay panel.
+    """Build the auto-discovering masks panel.
 
-    Observes `state.seg_file_path` (set by segmentation_tab's "Load overlay
-    in viewer" button) and also exposes a file browser + "Use latest"
-    shortcut so prior segmentations can be re-attached without re-running
-    TotalSegmentator.
+    Rebuilds the mask list whenever ``state.series_dir_path`` changes. Each
+    discovered ``.dcm`` becomes a checkbox; toggling drives a recomposite of
+    the series PNG cache so the viewer reflects the active overlay set.
     """
 
     image_widget = viewer["image_widget"]
 
-    _originals = [None]
-    _overlay_pngs: dict[int, bytes] = {}
-    _seg_cache = [None]
-    _current_seg_path: list[str | None] = [None]
-    _selected_seg_path: list[str | None] = [None]
-    # Orientation controls, applied to every mask before compositing so all
-    # slices share the same transform.
+    # Pristine snapshots of the per-slice PNGs at series-load time. We never
+    # mutate this; recomposites always start from base_arrays (decoded once)
+    # and write into state.series_png_cache.
+    _originals: list[bytes] | None = None
+    _base_arrays: list[np.ndarray] | None = None
+
+    # Per-mask state. List ordering is the composite z-order (top of list
+    # paints first, later entries layer on top).
+    # Entry shape:
+    #   {
+    #     "path": str,
+    #     "name": str,
+    #     "parsed": dict | None,        # cached load_dicom_seg result
+    #     "parse_error": str | None,
+    #     "row": HBox,                  # the checkbox/expand row
+    #     "checkbox": Checkbox,         # master enable
+    #     "expand_btn": Button,
+    #     "segments_box": VBox,         # per-segment checkbox container
+    #     "segment_checkboxes": {segment_number: Checkbox},
+    #     "expanded": bool,
+    #   }
+    _masks: list[dict] = []
+
+    # Orientation, applied to every mask before compositing so all overlays
+    # share the same axis convention. Identical semantics to the prior
+    # rotate/flip controls.
     _rotation = [0]  # number of 90° CCW turns
     _flip_h = [False]
     _flip_v = [False]
-    # Caches that survive rotate/flip/alpha re-applies. Cleared on series
-    # change (base arrays) or new SEG file / clear (parsed seg).
-    _parsed_seg_cache: list[dict | None] = [None]
-    _base_arrays_cache: list[list | None] = [None]
 
-    use_mask_btn = widgets.Button(
-        description="Use mask", icon="check", button_style="primary",
-        disabled=True,
-        tooltip="Load the selected segmentation as an overlay",
-        layout=widgets.Layout(width="110px", height="30px"),
+    # --- widgets ------------------------------------------------------------
+
+    header_label = widgets.HTML(
+        "<div style='font-size:13px;font-weight:700;color:#495057;'>"
+        "Masks for this series</div>",
+        layout=widgets.Layout(flex="1"),
     )
-    latest_btn = widgets.Button(
-        description="Use latest", icon="clock",
-        tooltip=f"Pick the most recent segmentations.dcm under {_SEG_OUTPUT_ROOT}",
-        layout=widgets.Layout(width="110px", height="30px"),
+    refresh_btn = widgets.Button(
+        icon="refresh",
+        tooltip="Rescan the masks folder",
+        layout=widgets.Layout(width="30px", height="24px"),
     )
-    clear_btn = widgets.Button(
-        description="Clear", icon="times",
-        layout=widgets.Layout(width="80px", height="30px"),
+    header = widgets.HBox(
+        [header_label, refresh_btn],
+        layout=widgets.Layout(
+            align_items="center",
+            padding="0 0 6px",
+        ),
+    )
+    status_html = widgets.HTML(value="")
+    mask_list_box = widgets.VBox([], layout=widgets.Layout(padding="4px 0"))
+
+    alpha_slider = widgets.FloatSlider(
+        value=0.4, min=0.1, max=0.9, step=0.05,
+        description="Opacity:", continuous_update=False,
+        style={"description_width": "60px"},
+        layout=widgets.Layout(width="100%"),
     )
     rotate_btn = widgets.Button(
         description="Rotate 90°", icon="redo",
@@ -153,325 +142,362 @@ def build_seg_viewer(state, viewer):
         tooltip="Mirror overlays vertically",
         layout=widgets.Layout(width="80px", height="30px"),
     )
-    overlay_toggle = widgets.Checkbox(
-        value=True, description="Show overlay", indent=False,
+    orient_row = widgets.HBox(
+        [rotate_btn, flip_h_btn, flip_v_btn],
+        layout=widgets.Layout(gap="8px", padding="4px 0"),
     )
-    alpha_slider = widgets.FloatSlider(
-        value=0.4, min=0.1, max=0.9, step=0.05,
-        description="Opacity:", continuous_update=False,
-        style={"description_width": "60px"},
-        layout=widgets.Layout(width="100%"),
-    )
-    status_html = widgets.HTML(value="")
-    legend_box = widgets.HTML(value="")
 
-    def _refresh_image():
+    # --- helpers ------------------------------------------------------------
+
+    def _refresh_viewer_image():
         if state.series_datasets and state.series_png_cache:
             idx = state.series_index
             if 0 <= idx < len(state.series_png_cache):
                 image_widget.value = state.series_png_cache[idx]
 
-    def _discard_overlay_state():
-        _originals[0] = None
-        _overlay_pngs.clear()
-        _seg_cache[0] = None
-        legend_box.value = ""
+    def _ensure_base_arrays():
+        nonlocal _originals, _base_arrays
+        if _originals is None and state.series_png_cache:
+            _originals = list(state.series_png_cache)
+        if _originals is None:
+            return False
+        if _base_arrays is None or len(_base_arrays) != len(_originals):
+            _base_arrays = [
+                np.array(
+                    Image.open(io.BytesIO(png)).convert("RGB"),
+                    dtype=np.float32,
+                )
+                for png in _originals
+            ]
+        return True
 
-    def _restore_originals():
-        if _originals[0] is None or not state.series_datasets:
-            return
-        originals = _originals[0]
-        cache = state.series_png_cache
-        for idx in range(min(len(originals), len(cache))):
-            cache[idx] = originals[idx]
-        _refresh_image()
+    def _reset_caches():
+        nonlocal _originals, _base_arrays
+        _originals = None
+        _base_arrays = None
 
-    def _apply_overlay_to_cache():
-        if _originals[0] is None or not _overlay_pngs:
-            return
-        cache = state.series_png_cache
-        for idx, png in _overlay_pngs.items():
-            if 0 <= idx < len(cache):
-                cache[idx] = png
-        _refresh_image()
+    def _transform_mask_array(arr):
+        if _flip_h[0]:
+            arr = np.fliplr(arr)
+        if _flip_v[0]:
+            arr = np.flipud(arr)
+        if _rotation[0]:
+            arr = np.rot90(arr, _rotation[0])
+        return arr
 
-    def _transform_masks(masks):
-        if not _flip_h[0] and not _flip_v[0] and _rotation[0] == 0:
-            return masks
-        out = {}
-        for k, m in masks.items():
-            mm = m
-            if _flip_h[0]:
-                mm = np.fliplr(mm)
-            if _flip_v[0]:
-                mm = np.flipud(mm)
-            if _rotation[0]:
-                mm = np.rot90(mm, _rotation[0])
-            out[k] = mm
-        return out
+    def _active_layers():
+        """Return list of (by_sop, segments, segments_enabled) for enabled masks."""
+        layers = []
+        for entry in _masks:
+            if not entry["checkbox"].value:
+                continue
+            parsed = entry["parsed"]
+            if parsed is None:
+                continue
+            enabled_segs = {
+                num for num, cb in entry["segment_checkboxes"].items() if cb.value
+            }
+            if not enabled_segs:
+                continue
+            layers.append((parsed["by_source_sop"], parsed["segments"], enabled_segs))
+        return layers
 
-    def _apply_seg(path_str):
-        path_str = (path_str or "").strip()
-        if not path_str:
-            status_html.value = _error_card(
-                "Select a SEG file from the browser (or click \"Use latest\")."
-            )
-            return
-        p = Path(path_str).expanduser()
-        if not p.is_file():
-            status_html.value = _error_card(f"File not found: {p}")
-            return
-
+    def _recomposite():
+        """Rebuild state.series_png_cache from base arrays + active layers."""
         if not state.series_datasets:
-            status_html.value = _error_card(
-                "No series loaded. Open a DICOM series first, then load the SEG."
-            )
             return
-
-        cached_parsed = _parsed_seg_cache[0]
-        if cached_parsed and cached_parsed["path"] == path_str:
-            seg = cached_parsed["seg"]
-        else:
-            try:
-                seg = load_dicom_seg(p)
-            except Exception as e:
-                status_html.value = _error_card(f"Could not parse SEG: {e}")
-                return
-            _parsed_seg_cache[0] = {"path": path_str, "seg": seg}
-
-        by_sop = seg["by_source_sop"]
-        segments = seg["segments"]
+        if not _ensure_base_arrays():
+            return
+        layers = _active_layers()
         alpha = float(alpha_slider.value)
 
-        try:
-            snapshot = list(state.series_png_cache)
-            # Cache float32 RGB arrays of the pristine base PNGs so repeated
-            # rotate/flip/alpha re-applies skip PNG-decode on every slice.
-            base_arrays = _base_arrays_cache[0]
-            if base_arrays is None or len(base_arrays) != len(snapshot):
-                base_arrays = [
-                    np.array(
-                        Image.open(io.BytesIO(png)).convert("RGB"),
-                        dtype=np.float32,
+        if not layers:
+            state.series_png_cache = list(_originals)
+            _refresh_viewer_image()
+            return
+
+        new_cache = list(_originals)
+        for idx, ds in enumerate(state.series_datasets):
+            sop = getattr(ds, "SOPInstanceUID", None)
+            if not sop:
+                continue
+            sop_key = str(sop)
+
+            base = _base_arrays[idx]
+            composite = None
+            for by_sop, segments, enabled_segs in layers:
+                slice_masks = by_sop.get(sop_key)
+                if not slice_masks:
+                    continue
+                filtered = {
+                    n: slice_masks[n]
+                    for n in enabled_segs
+                    if n in slice_masks
+                }
+                if not filtered:
+                    continue
+                if composite is None:
+                    composite = base.copy()
+                h, w = composite.shape[:2]
+                for seg_num, mask in filtered.items():
+                    mask = _transform_mask_array(mask)
+                    if mask.shape != (h, w):
+                        mask_pil = Image.fromarray(
+                            (mask.astype(np.uint8) * 255), mode="L"
+                        ).resize((w, h), Image.NEAREST)
+                        mask = np.array(mask_pil) > 127
+                    color = np.array(segments[seg_num]["color"], dtype=np.float32)
+                    composite[mask] = (
+                        (1.0 - alpha) * composite[mask] + alpha * color
                     )
-                    for png in snapshot
-                ]
-                _base_arrays_cache[0] = base_arrays
-
-            overlays: dict[int, bytes] = {}
-            matched_counts: dict[int, int] = {}
-
-            for idx, ds in enumerate(state.series_datasets):
-                sop = getattr(ds, "SOPInstanceUID", None)
-                if not sop:
-                    continue
-                masks = by_sop.get(str(sop))
-                if not masks:
-                    continue
-                masks = _transform_masks(masks)
-                composited = _composite_cached(
-                    base_arrays[idx], masks, segments, alpha
+            if composite is not None:
+                img = Image.fromarray(
+                    np.clip(composite, 0, 255).astype(np.uint8), mode="RGB"
                 )
-                overlays[idx] = _pil_to_png_bytes(composited)
-                for seg_num in masks:
-                    matched_counts[seg_num] = matched_counts.get(seg_num, 0) + 1
+                new_cache[idx] = _pil_to_png_bytes(img)
+
+        state.series_png_cache = new_cache
+        _refresh_viewer_image()
+
+    def _restore_originals():
+        if _originals is None:
+            return
+        state.series_png_cache = list(_originals)
+        _refresh_viewer_image()
+
+    # --- mask discovery + UI build -----------------------------------------
+
+    def _masks_dir_for_series():
+        if not state.series_dir_path:
+            return None
+        series_dir = Path(state.series_dir_path)
+        return series_dir.parent / _MASKS_SUBDIR
+
+    def _build_segment_row(entry, num, label, color, slice_count):
+        cb = widgets.Checkbox(
+            value=True,
+            description="",
+            indent=False,
+            layout=widgets.Layout(width="22px", margin="0"),
+        )
+        cb.observe(lambda _c: _recomposite(), names="value")
+        entry["segment_checkboxes"][num] = cb
+        meta = widgets.HTML(
+            f"<div style='font-size:12px;color:#495057;line-height:1.4;'>"
+            f"{_color_swatch(color)} &nbsp;{label}"
+            f"<span style='color:#6c757d;font-size:11px;'> &nbsp;&middot;&nbsp; "
+            f"{slice_count} slice{'s' if slice_count != 1 else ''}</span></div>"
+        )
+        return widgets.HBox(
+            [cb, meta],
+            layout=widgets.Layout(
+                align_items="center",
+                padding="2px 0 2px 18px",
+            ),
+        )
+
+    def _populate_segments(entry):
+        parsed = entry["parsed"]
+        seg_rows = []
+        segments = parsed["segments"]
+        matched_counts: dict[int, int] = {}
+        for sop_masks in parsed["by_source_sop"].values():
+            for num in sop_masks:
+                matched_counts[num] = matched_counts.get(num, 0) + 1
+        for num in sorted(segments.keys()):
+            info = segments[num]
+            seg_rows.append(
+                _build_segment_row(
+                    entry,
+                    num=num,
+                    label=info["label"],
+                    color=info["color"],
+                    slice_count=matched_counts.get(num, 0),
+                )
+            )
+        entry["segments_box"].children = seg_rows
+
+    def _on_expand_clicked(entry):
+        def _handler(_btn):
+            entry["expanded"] = not entry["expanded"]
+            if entry["expanded"]:
+                if entry["parsed"] is None and not entry["parse_error"]:
+                    _ensure_parsed(entry)
+                if entry["parsed"] is not None and not entry["segment_checkboxes"]:
+                    _populate_segments(entry)
+            entry["segments_box"].layout.display = "" if entry["expanded"] else "none"
+            entry["expand_btn"].icon = "chevron-down" if entry["expanded"] else "chevron-right"
+        return _handler
+
+    def _ensure_parsed(entry):
+        if entry["parsed"] is not None or entry["parse_error"]:
+            return
+        try:
+            entry["parsed"] = load_dicom_seg(Path(entry["path"]))
         except Exception as e:
-            status_html.value = _error_card(f"Compositing failed: {e}")
-            return
+            entry["parse_error"] = str(e)
+            entry["checkbox"].disabled = True
+            entry["checkbox"].description = f"{entry['name']}  (not a SEG: {e})"
 
-        if not overlays:
-            status_html.value = _error_card(
-                "SEG loaded, but no slices matched SOPInstanceUIDs in the "
-                "current series. Make sure the loaded series is the one the "
-                "SEG was produced from."
-            )
-            return
+    def _on_mask_toggle(entry):
+        def _handler(change):
+            if change["new"]:
+                _ensure_parsed(entry)
+                if entry["parse_error"]:
+                    return
+                if not entry["segment_checkboxes"]:
+                    _populate_segments(entry)
+            _recomposite()
+        return _handler
 
-        _originals[0] = snapshot
-        _overlay_pngs.clear()
-        _overlay_pngs.update(overlays)
-        _seg_cache[0] = {"segments": segments, "matched": matched_counts}
-        _current_seg_path[0] = path_str
-
-        if overlay_toggle.value:
-            _apply_overlay_to_cache()
-
-        n_matched = len(overlays)
-        n_total = len(state.series_datasets)
-        status_html.value = _success_card(
-            f"Overlay loaded: {n_matched} of {n_total} slices "
-            f"({len(matched_counts)} segment(s))."
+    def _build_mask_entry(path: Path) -> dict:
+        entry: dict = {
+            "path": str(path),
+            "name": path.name,
+            "parsed": None,
+            "parse_error": None,
+            "segment_checkboxes": {},
+            "expanded": False,
+        }
+        checkbox = widgets.Checkbox(
+            value=False,
+            description=path.name,
+            indent=False,
+            layout=widgets.Layout(flex="1"),
         )
-        legend_box.value = _legend_html(segments, matched_counts)
-
-    def _load_new_seg(path_str):
-        _restore_originals()
-        _discard_overlay_state()
-        status_html.value = ""
-        _apply_seg(path_str)
-        if path_str and path_str != state.seg_file_path:
-            state.seg_file_path = path_str
-
-    def _on_seg_file_clicked(file_path):
-        _selected_seg_path[0] = str(file_path)
-        use_mask_btn.disabled = False
-        status_html.value = (
-            f"<div style='color:#1565c0;background:#e8f4fd;padding:8px 10px;"
-            f"border-left:3px solid #1976d2;border-radius:4px;font-size:12px;'>"
-            f"Selected: <b>{Path(file_path).name}</b>. "
-            f"Click \"Use mask\" to load.</div>"
+        expand_btn = widgets.Button(
+            icon="chevron-right",
+            layout=widgets.Layout(width="30px", height="24px"),
+            tooltip="Show per-segment toggles",
         )
-        return None
+        segments_box = widgets.VBox([], layout=widgets.Layout(display="none"))
 
-    def _on_use_mask(_btn):
-        path = _selected_seg_path[0]
-        if not path:
-            status_html.value = _error_card(
-                "Select a SEG file from the browser first."
+        entry["checkbox"] = checkbox
+        entry["expand_btn"] = expand_btn
+        entry["segments_box"] = segments_box
+
+        checkbox.observe(_on_mask_toggle(entry), names="value")
+        expand_btn.on_click(_on_expand_clicked(entry))
+
+        row = widgets.HBox(
+            [checkbox, expand_btn],
+            layout=widgets.Layout(
+                align_items="center",
+                padding="2px 0",
+                border_bottom="1px solid #f0f0f0",
+            ),
+        )
+        entry["row"] = row
+        return entry
+
+    def _discover_masks():
+        nonlocal _masks
+        _masks = []
+        mask_list_box.children = []
+
+        masks_dir = _masks_dir_for_series()
+        if masks_dir is None:
+            status_html.value = _muted_card("Load a series to see available masks.")
+            return
+        if not masks_dir.is_dir():
+            status_html.value = _muted_card(
+                f"No <code>{_MASKS_SUBDIR}/</code> folder next to this series "
+                f"(<code>{masks_dir}</code>). Run a segmentation to generate one."
             )
             return
-        _load_new_seg(path)
 
-    def _on_latest(_btn):
-        latest = _find_latest_seg()
-        if latest is None:
-            status_html.value = _error_card(
-                f"No segmentations found under {_SEG_OUTPUT_ROOT}."
+        dcm_files = sorted(p for p in masks_dir.glob("*.dcm") if p.is_file())
+        if not dcm_files:
+            status_html.value = _muted_card(
+                f"No <code>.dcm</code> files in <code>{masks_dir}</code>."
             )
             return
-        _selected_seg_path[0] = str(latest)
-        use_mask_btn.disabled = False
-        _load_new_seg(str(latest))
 
-    def _on_clear(_btn):
-        status_html.value = ""
-        _restore_originals()
-        _discard_overlay_state()
-        _parsed_seg_cache[0] = None
-        _current_seg_path[0] = None
-        _selected_seg_path[0] = None
-        use_mask_btn.disabled = True
-        if state.seg_file_path:
-            state.seg_file_path = ""
+        rows = []
+        for p in dcm_files:
+            entry = _build_mask_entry(p)
+            _masks.append(entry)
+            rows.append(widgets.VBox([entry["row"], entry["segments_box"]]))
 
-    def _on_toggle(change):
-        if _seg_cache[0] is None or _originals[0] is None:
-            return
-        if change["new"]:
-            _apply_overlay_to_cache()
-        else:
-            state.series_png_cache = list(_originals[0])
-            _refresh_image()
+        mask_list_box.children = rows
+        status_html.value = _info_card(
+            f"Found {len(dcm_files)} mask file"
+            f"{'s' if len(dcm_files) != 1 else ''} in "
+            f"<code>{masks_dir}</code>."
+        )
+
+    # --- event handlers -----------------------------------------------------
 
     def _on_alpha_change(_change):
-        if _seg_cache[0] is None or not state.series_datasets:
-            return
-        current_path = _current_seg_path[0]
-        if not current_path:
-            return
-        _restore_originals()
-        _discard_overlay_state()
-        _apply_seg(current_path)
-
-    def _reapply_current():
-        current_path = _current_seg_path[0]
-        if not current_path:
-            return
-        _restore_originals()
-        _discard_overlay_state()
-        _apply_seg(current_path)
+        _recomposite()
 
     def _on_rotate(_btn):
         _rotation[0] = (_rotation[0] + 1) % 4
         rotate_btn.button_style = "info" if _rotation[0] else ""
-        _reapply_current()
+        _recomposite()
 
     def _on_flip_h(_btn):
         _flip_h[0] = not _flip_h[0]
         flip_h_btn.button_style = "info" if _flip_h[0] else ""
-        _reapply_current()
+        _recomposite()
 
     def _on_flip_v(_btn):
         _flip_v[0] = not _flip_v[0]
         flip_v_btn.button_style = "info" if _flip_v[0] else ""
-        _reapply_current()
+        _recomposite()
 
-    def _on_seg_path_state_change(change):
-        new_path = (change["new"] or "").strip()
-        if not new_path:
-            return
-        if new_path == _current_seg_path[0]:
-            return
+    def _on_series_dir_change(_change):
+        _reset_caches()
+        _discover_masks()
         _restore_originals()
-        _discard_overlay_state()
-        status_html.value = ""
-        _apply_seg(new_path)
 
-    def _on_series_change(_change):
-        # New series PNGs are already in state.series_png_cache; drop our
-        # stale originals without writing them back, and invalidate caches
-        # that were tied to the old series.
-        _base_arrays_cache[0] = None
-        _parsed_seg_cache[0] = None
-        if _originals[0] is None and _seg_cache[0] is None:
+    def _on_series_datasets_change(_change):
+        # series_png_cache is repopulated by file_browser when a new series
+        # loads; capture a fresh snapshot before any compositing happens.
+        _reset_caches()
+
+    def _on_refresh(_btn):
+        # Preserve the active overlay set across a rescan by carrying enabled
+        # filenames forward — running a fresh segmentation often adds a new
+        # mask but should not silently disable ones the user already toggled.
+        previously_enabled = {
+            entry["name"]
+            for entry in _masks
+            if entry["checkbox"].value
+        }
+        _discover_masks()
+        if not previously_enabled:
             return
-        _discard_overlay_state()
-        status_html.value = ""
-        _current_seg_path[0] = None
-        _selected_seg_path[0] = None
-        use_mask_btn.disabled = True
-        if state.seg_file_path:
-            state.seg_file_path = ""
+        any_restored = False
+        for entry in _masks:
+            if entry["name"] in previously_enabled:
+                entry["checkbox"].value = True
+                any_restored = True
+        if not any_restored:
+            _recomposite()
 
-    use_mask_btn.on_click(_on_use_mask)
-    latest_btn.on_click(_on_latest)
-    clear_btn.on_click(_on_clear)
+    alpha_slider.observe(_on_alpha_change, names="value")
     rotate_btn.on_click(_on_rotate)
     flip_h_btn.on_click(_on_flip_h)
     flip_v_btn.on_click(_on_flip_v)
-    overlay_toggle.observe(_on_toggle, names="value")
-    alpha_slider.observe(_on_alpha_change, names="value")
-    state.observe(_on_seg_path_state_change, names="seg_file_path")
-    state.observe(_on_series_change, names="series_dir_path")
+    refresh_btn.on_click(_on_refresh)
+    state.observe(_on_series_dir_change, names="series_dir_path")
+    state.observe(_on_series_datasets_change, names="series_datasets")
 
-    seg_browser = _build_browser(
-        title="&#x1F9E9; SEG Files",
-        default_path=_SEG_OUTPUT_ROOT,
-        file_filter=lambda p: p.suffix.lower() == ".dcm",
-        file_icon="\U0001F9E9",
-        on_file_click=_on_seg_file_clicked,
-        rows=8,
-    )
-    seg_browser.layout.width = "100%"
-    seg_browser.layout.min_width = "0"
-
-    controls_row = widgets.HBox(
-        [use_mask_btn, latest_btn, clear_btn],
-        layout=widgets.Layout(gap="8px", padding="4px 0"),
-    )
-    orient_row = widgets.HBox(
-        [rotate_btn, flip_h_btn, flip_v_btn],
-        layout=widgets.Layout(gap="8px", padding="4px 0"),
-    )
-    toggle_row = widgets.HBox([overlay_toggle])
-    toggle_row.add_class("medgemma-switch")
+    _discover_masks()
 
     return widgets.VBox(
         [
-            widgets.HTML(
-                "<div style='font-size:13px;font-weight:700;color:#495057;"
-                "padding:0 0 8px;'>Segmentation Overlay</div>"
-            ),
-            seg_browser,
-            controls_row,
-            orient_row,
-            toggle_row,
-            alpha_slider,
+            header,
             status_html,
-            legend_box,
+            mask_list_box,
+            alpha_slider,
+            orient_row,
         ],
         layout=widgets.Layout(
             flex="1", padding="0 0 0 16px",
             border_left="1px solid #e9ecef",
         ),
     )
+
+
