@@ -16,8 +16,8 @@ NSCLC_MODEL = "duneai-nsclc"
 # Dropdown label -> InferenceService name. The name is substituted into
 # INFERENCE_URL_TEMPLATE by http_client.predict().
 TASKS: dict[str, str] = {
-    "TotalSegmentator": "totalseg",
     "nsclc_segmentation": NSCLC_MODEL,
+    "TotalSegmentator": "totalseg",
 }
 
 _SPINNER_HTML = (
