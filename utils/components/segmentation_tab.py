@@ -35,22 +35,22 @@ _BRAINSEG_MODALITY_LABELS = {
 
 _SPINNER_HTML = (
     '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;">'
-    '<div style="width:18px;height:18px;border:2px solid #e0e0e0;'
-    'border-top-color:#1976d2;border-radius:50%;animation:spin 0.8s linear infinite;"></div>'
-    '<span style="font-size:13px;color:#6c757d;">Running segmentation...</span></div>'
+    '<span class="nbpoc-spinner"></span>'
+    '<span style="font-size:12px;color:var(--text-muted);">'
+    'Running inference&hellip;</span></div>'
 )
 
 _PLACEHOLDER = (
-    "<div style='color:#6c757d;padding:24px;text-align:center;"
-    "font-size:13px;'>Select a DICOM series from the browser and run "
-    "segmentation to see results here.</div>"
+    "<div style='color:var(--text-muted);padding:16px 4px;text-align:center;"
+    "font-size:12px;'>Select a DICOM series and click "
+    "<b>Analyze Current Slice</b> to generate a result.</div>"
 )
 
 
 def _error_card(msg: str) -> str:
     return (
-        f"<div style='color:#d32f2f;background:#fff3f3;padding:10px 12px;"
-        f"border-left:3px solid #d32f2f;border-radius:4px;font-size:13px;'>{msg}</div>"
+        f"<div class='nbpoc-card severe' style='font-size:12px;color:var(--severity-severe-fg);'>"
+        f"{msg}</div>"
     )
 
 
@@ -71,10 +71,11 @@ def _response_card(result: dict, local_seg_path: str | None) -> str:
     if roi:
         rows.append(f"<div><b>roi_subset</b> &nbsp; {', '.join(roi)}</div>")
     return (
-        "<div style='background:#f0f4f8;border:1px solid #dee2e6;border-radius:6px;"
-        "padding:12px 14px;font-size:12px;font-family:monospace;line-height:1.6;'>"
-        "<div style='font-weight:700;color:#495057;margin-bottom:6px;'>"
-        "Segmentation Result</div>"
+        "<div class='nbpoc-card normal' "
+        "style='font-size:11px;font-family:monospace;line-height:1.55;'>"
+        "<div style='font-weight:700;color:var(--text);margin-bottom:6px;"
+        "font-family:inherit;'>"
+        "Inference Result</div>"
         + "".join(rows) +
         "</div>"
     )
@@ -210,11 +211,12 @@ def build_segmentation(state):
     _brainseg_scans_cache: dict[str, dict] = {}
 
     run_button = widgets.Button(
-        description="Run Segmentation",
-        icon="cog",
+        description="Analyze Current Slice",
+        icon="bolt",
         button_style="primary",
         layout=widgets.Layout(width="100%", height="38px"),
     )
+    run_button.add_class("nbpoc-analyze-wrap")
 
     spinner = widgets.HTML(value="")
     response_area = widgets.HTML(value=_PLACEHOLDER)
@@ -223,15 +225,15 @@ def build_segmentation(state):
         n = len(state.series_datasets)
         if state.series_dir_name and n > 0:
             series_label.value = (
-                f"<div style='font-size:12px;color:#495057;padding:4px 0;'>"
-                f"<b>Series:</b> {state.series_dir_name} "
+                f"<div style='font-size:11.5px;color:var(--text-muted);padding:4px 0;'>"
+                f"<b style='color:var(--text);'>Series:</b> {state.series_dir_name} "
                 f"({n} slice{'s' if n != 1 else ''})</div>"
             )
             run_button.disabled = False
         else:
             series_label.value = (
-                "<div style='font-size:12px;color:#b26a00;padding:4px 0;'>"
-                "Load a DICOM series from the file browser to enable segmentation."
+                "<div style='font-size:11.5px;color:var(--warn-fg);padding:4px 0;'>"
+                "Load a DICOM series to enable inference."
                 "</div>"
             )
             run_button.disabled = True
@@ -281,9 +283,9 @@ def build_segmentation(state):
 
         if not scans:
             brainseg_status.value = (
-                "<div style='font-size:12px;color:#b26a00;padding:4px 0;'>"
-                "Load a DICOM series under <code>.../SCANS/&lt;id&gt;/DICOM/</code> "
-                "in the file browser to populate modality choices.</div>"
+                "<div style='font-size:11.5px;color:var(--warn-fg);padding:4px 0;'>"
+                "Load a series under <code>.../SCANS/&lt;id&gt;/DICOM/</code> "
+                "to populate modality choices.</div>"
             )
         else:
             unmatched = [
@@ -294,10 +296,10 @@ def build_segmentation(state):
             tail = (
                 f" Could not auto-detect: {', '.join(unmatched)}."
                 if unmatched
-                else " Auto-detected from SeriesDescription — verify before running."
+                else " Auto-detected — verify before running."
             )
             brainseg_status.value = (
-                f"<div style='font-size:12px;color:#495057;padding:4px 0;'>"
+                f"<div style='font-size:11.5px;color:var(--text-muted);padding:4px 0;'>"
                 f"Found {len(scans)} sibling scan{'s' if len(scans) != 1 else ''}.{tail}"
                 "</div>"
             )
@@ -386,10 +388,10 @@ def build_segmentation(state):
 
             predictor_elapsed = float(result.get("elapsed_s", 0.0))
             footer = (
-                f"<div style='font-size:11px;color:#adb5bd;margin-top:8px;'>"
-                f"Response time: {elapsed:.1f}s &nbsp;|&nbsp; "
-                f"Predictor: {predictor_elapsed:.1f}s &nbsp;|&nbsp; "
-                f"Click <b>&#x21bb;</b> in the masks panel to load.</div>"
+                f"<div style='font-size:10.5px;color:var(--text-dim);margin-top:8px;'>"
+                f"Response: {elapsed:.1f}s &nbsp;&middot;&nbsp; "
+                f"Predictor: {predictor_elapsed:.1f}s &nbsp;&middot;&nbsp; "
+                f"Refresh the results section to load the new mask.</div>"
             )
             response_area.value = _response_card(result, local_seg) + footer
 
@@ -419,10 +421,6 @@ def build_segmentation(state):
 
     return widgets.VBox(
         [
-            widgets.HTML(
-                "<div style='font-size:13px;font-weight:700;color:#495057;"
-                "padding:0 0 8px;'>Segmentation Panel</div>"
-            ),
             task_dropdown,
             series_label,
             fast_checkbox_bar,
@@ -430,11 +428,9 @@ def build_segmentation(state):
             threshold_input,
             mask_tag_input,
             brainseg_block,
-            response_area,
             run_button,
             spinner,
+            response_area,
         ],
-        layout=widgets.Layout(
-            flex="1", padding="0 16px 0 0",
-        ),
+        layout=widgets.Layout(width="100%", padding="0"),
     )

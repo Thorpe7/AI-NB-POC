@@ -1,0 +1,710 @@
+/* ============================================================
+   AI-NB-POC — modern-gui dark theme
+   Single stylesheet loaded via <style> HTML widget at app boot.
+   ============================================================ */
+
+:root {
+    --bg-root: #0f1419;
+    --bg-panel: #1a1f2e;
+    --bg-panel-alt: #232940;
+    --bg-elevated: #2a3147;
+    --bg-input: #1f2436;
+    --border: #252b3d;
+    --border-strong: #344058;
+    --text: #e4e7eb;
+    --text-muted: #7a8290;
+    --text-dim: #9aa0ac;
+    --accent: #1e88e5;
+    --accent-hover: #2196f3;
+    --accent-dim: rgba(30, 136, 229, 0.15);
+    --severity-normal-bg: rgba(56, 142, 60, 0.18);
+    --severity-normal-fg: #66bb6a;
+    --severity-moderate-bg: rgba(245, 124, 0, 0.18);
+    --severity-moderate-fg: #ffb74d;
+    --severity-severe-bg: rgba(211, 47, 47, 0.20);
+    --severity-severe-fg: #ef5350;
+    --warn-bg: rgba(245, 124, 0, 0.12);
+    --warn-border: rgba(245, 124, 0, 0.45);
+    --warn-fg: #ffb74d;
+    --status-ready: #4caf50;
+    --status-running: #ffb74d;
+    --status-error: #ef5350;
+}
+
+/* --- Voila / page background ----------------------------------------- */
+
+body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
+    background-color: var(--bg-root) !important;
+    color: var(--text);
+}
+
+.jp-Cell, .jp-CodeCell, .jp-RenderedHTMLCommon {
+    background-color: transparent !important;
+    color: var(--text) !important;
+}
+
+/* --- App root --------------------------------------------------------- */
+
+.nbpoc-app {
+    background-color: var(--bg-root);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI",
+                 Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+}
+
+.nbpoc-app *, .nbpoc-app *::before, .nbpoc-app *::after {
+    box-sizing: border-box;
+}
+
+/* AppLayout grid — keep panes flush against each other */
+.nbpoc-app .jupyter-widgets.widget-gridbox,
+.nbpoc-app .widget-appLayout {
+    gap: 0 !important;
+}
+
+/* --- Top toolbar ------------------------------------------------------ */
+
+.nbpoc-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 52px;
+    padding: 0 14px;
+    background-color: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    gap: 16px;
+}
+
+.nbpoc-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+}
+
+.nbpoc-toolbar-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: default;
+}
+
+.nbpoc-toolbar-brand .dot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: linear-gradient(135deg, var(--accent), #00bcd4);
+}
+
+.nbpoc-toolbar-btn {
+    height: 32px;
+    padding: 0 12px;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nbpoc-toolbar-btn:hover {
+    background-color: var(--bg-elevated);
+    color: var(--text);
+}
+
+.nbpoc-toolbar-btn.active {
+    background-color: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.nbpoc-toolbar-icon {
+    height: 32px;
+    width: 32px;
+    padding: 0;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+}
+
+.nbpoc-toolbar-icon:hover {
+    background-color: var(--bg-elevated);
+    color: var(--text);
+}
+
+.nbpoc-toolbar-divider {
+    width: 1px;
+    height: 22px;
+    background-color: var(--border-strong);
+    margin: 0 4px;
+}
+
+.nbpoc-toolbar-fps {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    padding: 0 6px;
+}
+
+/* --- Left sidebar (scan list) ---------------------------------------- */
+
+.nbpoc-sidebar {
+    background-color: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    height: 100%;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.nbpoc-breadcrumb {
+    padding: 10px 14px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+
+.nbpoc-breadcrumb .sep {
+    color: var(--text-dim);
+    margin: 0 5px;
+}
+
+.nbpoc-breadcrumb .crumb {
+    color: var(--text-dim);
+}
+
+.nbpoc-breadcrumb .crumb.current {
+    color: var(--text);
+}
+
+.nbpoc-filter-row {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background-color: var(--bg-panel);
+}
+
+.nbpoc-scan-list {
+    padding: 6px 0 12px;
+}
+
+.nbpoc-scan-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background-color 0.1s ease;
+}
+
+.nbpoc-scan-row:hover {
+    background-color: var(--bg-panel-alt);
+}
+
+.nbpoc-scan-row.selected {
+    background-color: var(--bg-panel-alt);
+    border-left-color: var(--accent);
+}
+
+.nbpoc-scan-icon {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-elevated);
+    border-radius: 4px;
+    color: #ffb74d;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.nbpoc-scan-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.nbpoc-scan-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--text);
+    font-size: 12.5px;
+    line-height: 1.3;
+}
+
+.nbpoc-scan-title .idx {
+    color: var(--text-dim);
+    font-weight: 500;
+    margin-right: 2px;
+}
+
+.nbpoc-chip {
+    display: inline-block;
+    padding: 1px 6px;
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.nbpoc-scan-sub {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.4;
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Center viewer panel --------------------------------------------- */
+
+.nbpoc-viewer {
+    background-color: var(--bg-root);
+    height: 100%;
+    width: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.nbpoc-viewer-canvas {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #000;
+    overflow: hidden;
+    min-height: 500px;
+}
+
+.nbpoc-viewer-canvas .widget-image img,
+.nbpoc-viewer-canvas .widget-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    background-color: transparent;
+}
+
+.nbpoc-viewer-overlay {
+    position: absolute;
+    color: var(--text);
+    font-size: 11.5px;
+    line-height: 1.45;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.nbpoc-viewer-overlay.tl { top: 12px; left: 16px; }
+.nbpoc-viewer-overlay.tr { top: 12px; right: 16px; text-align: right; }
+.nbpoc-viewer-overlay.bl { bottom: 36px; left: 16px; }
+.nbpoc-viewer-overlay.br { bottom: 36px; right: 16px; text-align: right; }
+
+.nbpoc-viewer-overlay .title {
+    font-weight: 600;
+    font-size: 12.5px;
+}
+
+.nbpoc-viewer-overlay .muted {
+    color: var(--text-dim);
+}
+
+.nbpoc-viewer-scrub {
+    height: 28px;
+    background-color: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+}
+
+/* --- Right inference panel -------------------------------------------- */
+
+.nbpoc-inference {
+    background-color: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    height: 100%;
+    overflow-y: auto;
+    color: var(--text);
+}
+
+.nbpoc-inference-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.nbpoc-inference-header .title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.nbpoc-inference-header .title .glyph {
+    color: var(--accent);
+}
+
+.nbpoc-inference-body {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.nbpoc-disclaimer {
+    background-color: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--warn-fg);
+    font-size: 11.5px;
+    line-height: 1.4;
+}
+
+.nbpoc-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+}
+
+.nbpoc-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+}
+
+.nbpoc-status .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--status-ready);
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.18);
+}
+
+.nbpoc-status.running .dot { background-color: var(--status-running);
+    box-shadow: 0 0 0 3px rgba(255, 183, 77, 0.18); }
+.nbpoc-status.error .dot { background-color: var(--status-error);
+    box-shadow: 0 0 0 3px rgba(239, 83, 80, 0.18); }
+
+.nbpoc-stop-btn {
+    height: 26px;
+    padding: 0 12px;
+    background-color: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text-dim);
+    border-radius: 4px;
+    font-size: 11.5px;
+    cursor: pointer;
+}
+
+.nbpoc-stop-btn:hover { color: var(--text); }
+
+.nbpoc-analyze-btn,
+.nbpoc-inference button.nbpoc-analyze-btn,
+.nbpoc-inference .widget-button.nbpoc-analyze-wrap button {
+    background-color: var(--accent) !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    height: 38px !important;
+    width: 100% !important;
+    border: none !important;
+    border-radius: 6px !important;
+    cursor: pointer;
+    font-size: 13px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.12s ease;
+}
+
+.nbpoc-analyze-btn:hover,
+.nbpoc-inference .widget-button.nbpoc-analyze-wrap button:hover {
+    background-color: var(--accent-hover) !important;
+}
+
+.nbpoc-section-label {
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    padding: 6px 0 2px;
+    text-transform: uppercase;
+}
+
+/* --- Result cards ----------------------------------------------------- */
+
+.nbpoc-card {
+    background-color: var(--bg-panel-alt);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 12.5px;
+    line-height: 1.4;
+}
+
+.nbpoc-card.normal { border-left: 3px solid var(--severity-normal-fg); }
+.nbpoc-card.moderate { border-left: 3px solid var(--severity-moderate-fg); }
+.nbpoc-card.severe { border-left: 3px solid var(--severity-severe-fg); }
+
+.nbpoc-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.nbpoc-card-title {
+    font-weight: 500;
+    color: var(--text);
+    flex: 1;
+    line-height: 1.35;
+}
+
+.nbpoc-card-severity {
+    flex-shrink: 0;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: lowercase;
+}
+
+.nbpoc-card-severity.normal { background-color: var(--severity-normal-bg); color: var(--severity-normal-fg); }
+.nbpoc-card-severity.moderate { background-color: var(--severity-moderate-bg); color: var(--severity-moderate-fg); }
+.nbpoc-card-severity.severe { background-color: var(--severity-severe-bg); color: var(--severity-severe-fg); }
+
+.nbpoc-card-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin: 4px 0 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.nbpoc-card-meta a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.nbpoc-card-meta .sep { color: var(--text-dim); }
+
+.nbpoc-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.nbpoc-card-action {
+    height: 26px;
+    padding: 0 10px;
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    color: var(--text-dim);
+    border-radius: 4px;
+    font-size: 11.5px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nbpoc-card-action:hover { color: var(--text); background-color: var(--bg-panel); }
+.nbpoc-card-action.accept:hover { color: var(--severity-normal-fg); border-color: var(--severity-normal-fg); }
+.nbpoc-card-action.reject:hover { color: var(--severity-severe-fg); border-color: var(--severity-severe-fg); }
+.nbpoc-card-action.edit:hover { color: var(--accent); border-color: var(--accent); }
+
+.nbpoc-card-drawer {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border-strong);
+}
+
+.nbpoc-card-drawer.hidden { display: none; }
+
+.nbpoc-card-diag-chip {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.nbpoc-card-diag-chip:hover { color: var(--accent); }
+
+/* --- Footer ----------------------------------------------------------- */
+
+.nbpoc-footer {
+    height: 28px;
+    background-color: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 14px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+/* --- ipywidgets overrides for dark mode ------------------------------- */
+
+.nbpoc-app .widget-button button,
+.nbpoc-app button.jupyter-button {
+    background-color: var(--bg-elevated);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    font-size: 12px;
+    height: 28px;
+    box-shadow: none;
+    transition: background-color 0.12s ease;
+}
+
+.nbpoc-app .widget-button button:hover,
+.nbpoc-app button.jupyter-button:hover {
+    background-color: var(--bg-panel-alt);
+    color: var(--text);
+}
+
+.nbpoc-app .widget-button button.mod-primary {
+    background-color: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+.nbpoc-app .widget-button button.mod-primary:hover {
+    background-color: var(--accent-hover);
+}
+
+.nbpoc-app .widget-button button.mod-warning {
+    background-color: rgba(245, 124, 0, 0.20);
+    color: var(--warn-fg);
+    border-color: var(--warn-border);
+}
+
+.nbpoc-app .widget-button button.mod-info {
+    background-color: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.nbpoc-app .widget-text input,
+.nbpoc-app .widget-textarea textarea,
+.nbpoc-app .widget-password input,
+.nbpoc-app .widget-numeric input,
+.nbpoc-app .widget-dropdown select,
+.nbpoc-app .widget-combobox input,
+.nbpoc-app input[type="text"],
+.nbpoc-app input[type="number"],
+.nbpoc-app select {
+    background-color: var(--bg-input) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--border-strong) !important;
+    border-radius: 4px !important;
+    font-size: 12px !important;
+    box-shadow: none !important;
+}
+
+.nbpoc-app .widget-text input:focus,
+.nbpoc-app .widget-textarea textarea:focus,
+.nbpoc-app .widget-numeric input:focus,
+.nbpoc-app .widget-dropdown select:focus,
+.nbpoc-app input:focus,
+.nbpoc-app select:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px rgba(30, 136, 229, 0.18) !important;
+    outline: none !important;
+}
+
+.nbpoc-app label,
+.nbpoc-app .widget-label,
+.nbpoc-app .jupyter-widgets {
+    color: var(--text);
+}
+
+.nbpoc-app .widget-checkbox label {
+    color: var(--text);
+    font-size: 12px;
+}
+
+.nbpoc-app .widget-checkbox input[type="checkbox"] {
+    accent-color: var(--accent);
+}
+
+/* IntSlider track in dark mode */
+.nbpoc-app .widget-slider .slider-track,
+.nbpoc-app .ui-slider {
+    background-color: var(--bg-input) !important;
+    border-color: var(--border-strong) !important;
+}
+
+.nbpoc-app .ui-slider .ui-slider-handle {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+
+.nbpoc-app .ui-slider .ui-slider-range,
+.nbpoc-app .noUi-connect {
+    background-color: var(--accent) !important;
+}
+
+/* Generic select widget (file_browser uses widgets.Select) */
+.nbpoc-app .widget-select select option {
+    background-color: var(--bg-input);
+    color: var(--text);
+}
+
+/* Spinner used by segmentation_tab — keep but recolor */
+.nbpoc-app .nbpoc-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: nbpoc-spin 0.8s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+@keyframes nbpoc-spin { to { transform: rotate(360deg); } }
+
+/* Hide voila/jupyter chrome we don't want */
+.nbpoc-app .jp-OutputArea-prompt,
+.nbpoc-app .jp-InputArea-prompt {
+    display: none !important;
+}

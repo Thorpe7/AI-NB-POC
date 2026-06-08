@@ -9,26 +9,47 @@ from utils.dicom_utils import extract_metadata
 
 _PLACEHOLDER_HTML = (
     "<div style='display:flex;align-items:center;justify-content:center;"
-    "width:100%;min-height:350px;background:#f8f9fa;border-radius:8px;"
-    "border:2px dashed #dee2e6;color:#6c757d;font-size:14px;"
+    "width:100%;min-height:350px;background:transparent;"
+    "color:var(--text-muted);font-size:13px;"
     "flex-direction:column;gap:8px;'>"
-    "<span style='font-size:36px;opacity:0.5;'>&#128203;</span>"
-    "<span>Select a file from the browser</span></div>"
+    "<span style='font-size:36px;opacity:0.4;'>&#128203;</span>"
+    "<span>Select a series from the left sidebar</span></div>"
 )
 
 
 def _metadata_table(rows):
     trs = "".join(
         f"<tr><td style='padding:4px 12px;font-weight:600;white-space:nowrap;"
-        f"color:#495057;font-size:12px;border-bottom:1px solid #f0f0f0;'>{k}</td>"
-        f"<td style='padding:4px 12px;font-size:12px;color:#6c757d;"
-        f"border-bottom:1px solid #f0f0f0;'>{v}</td></tr>"
+        f"color:var(--text);font-size:11.5px;"
+        f"border-bottom:1px solid var(--border);'>{k}</td>"
+        f"<td style='padding:4px 12px;font-size:11.5px;color:var(--text-muted);"
+        f"border-bottom:1px solid var(--border);'>{v}</td></tr>"
         for k, v in rows
     )
     return (
-        f"<table style='font-size:12px;border-collapse:collapse;width:100%;'>"
+        f"<table style='font-size:11.5px;border-collapse:collapse;width:100%;'>"
         f"{trs}</table>"
     )
+
+
+def _fmt(value, suffix: str = "") -> str:
+    """Format a DICOM scalar/sequence for an overlay (best-effort)."""
+    if value is None or value == "":
+        return "&mdash;"
+    # DICOM multi-value (DSfloat, IS, etc.) is iterable; show first element.
+    if hasattr(value, "__iter__") and not isinstance(value, (str, bytes)):
+        try:
+            value = next(iter(value))
+        except StopIteration:
+            return "&mdash;"
+    try:
+        if isinstance(value, float) or (
+            isinstance(value, str) and "." in value
+        ):
+            return f"{float(value):.2f}{suffix}"
+    except (TypeError, ValueError):
+        pass
+    return f"{value}{suffix}"
 
 
 def build_viewer(state):
@@ -61,18 +82,82 @@ def build_viewer(state):
             justify_content="center",
             align_items="center",
             width="100%",
-            min_height="600px",
+            min_height="500px",
             max_height="80vh",
             overflow="hidden",
         ),
     )
-    image_label = widgets.HTML(value="")
+    # image_label and series_info_label are kept as no-op sinks for the
+    # file_browser writes that still call into them. The corner overlays are
+    # the user-visible labels now.
+    image_label = widgets.HTML(value="", layout=widgets.Layout(display="none"))
     metadata_html = widgets.HTML(value="")
 
     series_info_label = widgets.HTML(
         value="",
         layout=widgets.Layout(display="none"),
     )
+
+    # --- Corner overlays (top-left subject, top-right series, bottom-left
+    # slice + W/L, bottom-right zoom + matrix). Absolutely positioned over the
+    # image via the .nbpoc-viewer-canvas wrapper.
+    overlay_tl = widgets.HTML(value="")
+    overlay_tr = widgets.HTML(value="")
+    overlay_bl = widgets.HTML(value="")
+    overlay_br = widgets.HTML(value="")
+    for ov, cls in (
+        (overlay_tl, "tl"), (overlay_tr, "tr"),
+        (overlay_bl, "bl"), (overlay_br, "br"),
+    ):
+        ov.add_class("nbpoc-viewer-overlay")
+        ov.add_class(cls)
+
+    def _update_overlays():
+        ds = state.current_ds
+        if ds is None:
+            overlay_tl.value = overlay_tr.value = ""
+            overlay_bl.value = overlay_br.value = ""
+            return
+        # Top-left: subject + study
+        patient = str(
+            getattr(ds, "PatientID", "") or getattr(ds, "PatientName", "") or ""
+        )
+        study_date = str(getattr(ds, "StudyDate", "") or "")
+        study_desc = str(getattr(ds, "StudyDescription", "") or "")
+        study_line = " ".join(s for s in (study_date, study_desc) if s)
+        overlay_tl.value = (
+            f"<div class='title'>{patient or '&mdash;'}</div>"
+            f"<div class='muted'>{study_line or ''}</div>"
+        )
+        # Top-right: series description + number
+        desc = str(getattr(ds, "SeriesDescription", "") or "")
+        modality = str(getattr(ds, "Modality", "") or "")
+        series_num = getattr(ds, "SeriesNumber", "")
+        head_line = " ".join(s for s in (desc, modality) if s) or "&mdash;"
+        overlay_tr.value = (
+            f"<div class='title'>{head_line}</div>"
+            f"<div class='muted'>Series: {_fmt(series_num)}</div>"
+        )
+        # Bottom-left: image i/n, location, thickness, W/L
+        total = len(state.series_datasets)
+        idx = state.series_index + 1 if total else 1
+        loc = getattr(ds, "SliceLocation", None)
+        thick = getattr(ds, "SliceThickness", None)
+        ww = getattr(ds, "WindowWidth", None)
+        wc = getattr(ds, "WindowCenter", None)
+        overlay_bl.value = (
+            f"<div>Image: {idx}{f' / {total}' if total else ''}</div>"
+            f"<div>Loc: {_fmt(loc, ' mm')}</div>"
+            f"<div>Thick: {_fmt(thick, ' mm')}</div>"
+            f"<div>W: {_fmt(ww)} &nbsp; L: {_fmt(wc)}</div>"
+        )
+        # Bottom-right: zoom (stub) + matrix size
+        rows = getattr(ds, "Rows", None)
+        cols = getattr(ds, "Columns", None)
+        overlay_br.value = (
+            f"<div>Zoom: 100%</div>"
+            f"<div>{_fmt(rows)} &times; {_fmt(cols)}</div>"
+        )
 
     prev_btn = widgets.Button(
         description="", icon="arrow-left",
@@ -124,6 +209,7 @@ def build_viewer(state):
         meta_rows = extract_metadata(ds)
         if meta_rows:
             metadata_html.value = _metadata_table(meta_rows)
+        _update_overlays()
 
     def _on_prev(_btn):
         _go_to_slice(state.series_index - 1)
@@ -149,6 +235,7 @@ def build_viewer(state):
     next_btn.on_click(_on_next)
     slice_slider.observe(_on_slider, names="value")
     state.observe(_on_series_datasets_change, names="series_datasets")
+    state.observe(lambda _c: _update_overlays(), names="current_ds")
 
     # Scroll-wheel + arrow-key nav via ipyevents. Attach to BOTH the Box and
     # the Image — the Box catches bubbled events in JupyterLab, but Voila and
@@ -187,25 +274,37 @@ def build_viewer(state):
     _wheel_img.on_dom_event(_on_wheel)
     _key_event.on_dom_event(_on_key)
 
-    viewer_panel = widgets.VBox(
+    canvas = widgets.Box(
         [
-            image_label,
             image_placeholder,
             image_container,
-            series_nav,
+            overlay_tl,
+            overlay_tr,
+            overlay_bl,
+            overlay_br,
         ],
-        layout=widgets.Layout(
-            width="100%",
-            min_height="600px",
-        ),
+        layout=widgets.Layout(width="100%", flex="1"),
     )
+    canvas.add_class("nbpoc-viewer-canvas")
+
+    scrub_box = widgets.Box(
+        [series_nav],
+        layout=widgets.Layout(width="100%"),
+    )
+    scrub_box.add_class("nbpoc-viewer-scrub")
+
+    viewer_panel = widgets.VBox(
+        [image_label, canvas, scrub_box],
+        layout=widgets.Layout(width="100%", height="100%"),
+    )
+    viewer_panel.add_class("nbpoc-viewer")
 
     info_panel = widgets.VBox(
         [
             widgets.HTML(
-                "<div style='font-size:13px;font-weight:700;color:#495057;"
-                "padding:8px 0 4px;border-top:1px solid #e9ecef;margin-top:12px;'>"
-                "DICOM Metadata</div>"
+                "<div class='nbpoc-section-label' "
+                "style='padding:8px 0 4px;border-top:1px solid var(--border);"
+                "margin-top:12px;'>DICOM METADATA</div>"
             ),
             metadata_html,
         ],

@@ -33,15 +33,16 @@ def _pil_to_png_bytes(img):
 
 def _error_card(msg):
     return (
-        f"<div style='color:#d32f2f;background:#fff3f3;padding:8px 10px;"
-        f"border-left:3px solid #d32f2f;border-radius:4px;font-size:12px;'>{msg}</div>"
+        f"<div class='nbpoc-card severe' style='font-size:11.5px;"
+        f"color:var(--severity-severe-fg);'>{msg}</div>"
     )
 
 
 def _muted_card(msg):
     return (
-        f"<div style='color:#6c757d;background:#f8f9fa;padding:8px 10px;"
-        f"border-left:3px solid #adb5bd;border-radius:4px;font-size:12px;'>{msg}</div>"
+        f"<div style='color:var(--text-muted);background:var(--bg-panel-alt);"
+        f"padding:10px 12px;border-left:3px solid var(--border-strong);"
+        f"border-radius:4px;font-size:11.5px;line-height:1.4;'>{msg}</div>"
     )
 
 
@@ -50,8 +51,17 @@ def _color_swatch(rgb):
     return (
         f"<span style='display:inline-block;width:11px;height:11px;"
         f"background:rgb({r},{g},{b});border-radius:2px;"
-        f"border:1px solid rgba(0,0,0,0.15);vertical-align:middle;'></span>"
+        f"border:1px solid rgba(255,255,255,0.15);vertical-align:middle;'></span>"
     )
+
+
+def _severity_for_seg(num_segments: int) -> str:
+    """Bucket: 0 → normal, 1-2 → moderate, 3+ → severe. Tweakable."""
+    if num_segments <= 0:
+        return "normal"
+    if num_segments <= 2:
+        return "moderate"
+    return "severe"
 
 
 def build_seg_viewer(state, viewer):
@@ -97,21 +107,17 @@ def build_seg_viewer(state, viewer):
     # --- widgets ------------------------------------------------------------
 
     header_label = widgets.HTML(
-        "<div style='font-size:13px;font-weight:700;color:#495057;'>"
-        "Masks for this series</div>",
+        "<div class='nbpoc-section-label'>RESULTS (0)</div>",
         layout=widgets.Layout(flex="1"),
     )
     refresh_btn = widgets.Button(
         icon="refresh",
         tooltip="Rescan the masks folder",
-        layout=widgets.Layout(width="30px", height="24px"),
+        layout=widgets.Layout(width="28px", height="24px"),
     )
     header = widgets.HBox(
         [header_label, refresh_btn],
-        layout=widgets.Layout(
-            align_items="center",
-            padding="0 0 6px",
-        ),
+        layout=widgets.Layout(align_items="center", padding="12px 0 4px"),
     )
     status_html = widgets.HTML(value="")
     mask_list_box = widgets.VBox([], layout=widgets.Layout(padding="4px 0"))
@@ -125,21 +131,24 @@ def build_seg_viewer(state, viewer):
     rotate_btn = widgets.Button(
         description="Rotate 90°", icon="redo",
         tooltip="Rotate overlays 90° CCW (cycles 0/90/180/270)",
-        layout=widgets.Layout(width="110px", height="30px"),
+        layout=widgets.Layout(width="100px", height="28px"),
     )
     flip_h_btn = widgets.Button(
         description="Flip H", icon="arrows-h",
         tooltip="Mirror overlays horizontally",
-        layout=widgets.Layout(width="80px", height="30px"),
+        layout=widgets.Layout(width="74px", height="28px"),
     )
     flip_v_btn = widgets.Button(
         description="Flip V", icon="arrows-v",
         tooltip="Mirror overlays vertically",
-        layout=widgets.Layout(width="80px", height="30px"),
+        layout=widgets.Layout(width="74px", height="28px"),
     )
     orient_row = widgets.HBox(
         [rotate_btn, flip_h_btn, flip_v_btn],
-        layout=widgets.Layout(gap="8px", padding="4px 0"),
+        layout=widgets.Layout(gap="6px", padding="4px 0"),
+    )
+    display_controls_label = widgets.HTML(
+        "<div class='nbpoc-section-label' style='padding-top:12px;'>DISPLAY</div>"
     )
 
     # --- helpers ------------------------------------------------------------
@@ -320,9 +329,37 @@ def build_seg_viewer(state, viewer):
                     _ensure_parsed(entry)
                 if entry["parsed"] is not None and not entry["segment_checkboxes"]:
                     _populate_segments(entry)
-            entry["segments_box"].layout.display = "" if entry["expanded"] else "none"
-            entry["expand_btn"].icon = "chevron-down" if entry["expanded"] else "chevron-right"
+                if entry["parsed"] is not None:
+                    _refresh_card_severity(entry)
+            target = entry.get("drawer") or entry["segments_box"]
+            target.layout.display = "" if entry["expanded"] else "none"
         return _handler
+
+    def _refresh_card_severity(entry):
+        """Recompute card severity from parsed segment count + restyle."""
+        parsed = entry.get("parsed")
+        title_html = entry.get("title_html")
+        card = entry.get("card")
+        if parsed is None or title_html is None or card is None:
+            return
+        seg_count = len(parsed.get("segments") or {})
+        severity = _severity_for_seg(seg_count)
+        for cls in ("normal", "moderate", "severe"):
+            card.remove_class(cls)
+        card.add_class(severity)
+        title_html.value = (
+            f"<div class='nbpoc-card-head'>"
+            f"<div class='nbpoc-card-title'>{Path(entry['path']).stem}</div>"
+            f"<span class='nbpoc-card-severity {severity}'>{severity}</span>"
+            f"</div>"
+            f"<div class='nbpoc-card-meta'>"
+            f"<span>See report</span>"
+            f"<span class='sep'>&middot;</span>"
+            f"<span>{seg_count} segment{'s' if seg_count != 1 else ''}</span>"
+            f"<span class='sep'>&middot;</span>"
+            f"<span>50%</span>"
+            f"</div>"
+        )
 
     def _ensure_parsed(entry):
         if entry["parsed"] is not None or entry["parse_error"]:
@@ -354,41 +391,107 @@ def build_seg_viewer(state, viewer):
             "segment_checkboxes": {},
             "expanded": False,
         }
+        # Master enable for the overlay; description doubles as the visible
+        # filename inside the Edit drawer.
         checkbox = widgets.Checkbox(
             value=False,
-            description=path.name,
+            description="Enable overlay",
             indent=False,
-            layout=widgets.Layout(flex="1"),
+            layout=widgets.Layout(width="auto"),
         )
-        expand_btn = widgets.Button(
-            icon="chevron-right",
-            layout=widgets.Layout(width="30px", height="24px"),
-            tooltip="Show per-segment toggles",
-        )
+        # Per-segment toggles, populated lazily once the SEG is parsed.
         segments_box = widgets.VBox([], layout=widgets.Layout(display="none"))
 
+        # Action row: Accept / Edit / Reject. Accept is a no-op flag, Edit
+        # toggles the Edit drawer (enable checkbox + segments box), Reject
+        # hides the card and disables any active overlay for that mask.
+        accept_btn = widgets.Button(
+            description="Accept", icon="check",
+            layout=widgets.Layout(width="auto", height="26px"),
+        )
+        edit_btn = widgets.Button(
+            description="Edit", icon="pencil",
+            layout=widgets.Layout(width="auto", height="26px"),
+        )
+        reject_btn = widgets.Button(
+            description="Reject", icon="times",
+            layout=widgets.Layout(width="auto", height="26px"),
+        )
+        for b in (accept_btn, edit_btn, reject_btn):
+            b.add_class("nbpoc-card-action")
+        accept_btn.add_class("accept")
+        edit_btn.add_class("edit")
+        reject_btn.add_class("reject")
+        action_row = widgets.HBox(
+            [accept_btn, edit_btn, reject_btn],
+            layout=widgets.Layout(gap="6px", padding="0"),
+        )
+        action_row.add_class("nbpoc-card-actions")
+
+        # The Edit drawer holds the enable checkbox + segments box; hidden
+        # by default, revealed by the Edit button.
+        drawer = widgets.VBox(
+            [checkbox, segments_box],
+            layout=widgets.Layout(display="none"),
+        )
+        drawer.add_class("nbpoc-card-drawer")
+
+        # Card title + severity tag. Severity stays 'normal' until the SEG is
+        # parsed and we can count segments; updated lazily inside _ensure_parsed.
+        title_html = widgets.HTML(
+            value=(
+                f"<div class='nbpoc-card-head'>"
+                f"<div class='nbpoc-card-title'>{path.stem}</div>"
+                f"<span class='nbpoc-card-severity normal'>normal</span>"
+                f"</div>"
+                f"<div class='nbpoc-card-meta'>"
+                f"<span>See report</span>"
+                f"<span class='sep'>&middot;</span>"
+                f"<span>{path.name}</span>"
+                f"<span class='sep'>&middot;</span>"
+                f"<span>50%</span>"
+                f"</div>"
+            )
+        )
+
+        card = widgets.VBox(
+            [title_html, action_row, drawer],
+            layout=widgets.Layout(margin="0 0 10px 0"),
+        )
+        card.add_class("nbpoc-card")
+        card.add_class("normal")
+
         entry["checkbox"] = checkbox
-        entry["expand_btn"] = expand_btn
+        entry["expand_btn"] = edit_btn
         entry["segments_box"] = segments_box
+        entry["accept_btn"] = accept_btn
+        entry["reject_btn"] = reject_btn
+        entry["title_html"] = title_html
+        entry["card"] = card
+        entry["drawer"] = drawer
 
         checkbox.observe(_on_mask_toggle(entry), names="value")
-        expand_btn.on_click(_on_expand_clicked(entry))
+        edit_btn.on_click(_on_expand_clicked(entry))
 
-        row = widgets.HBox(
-            [checkbox, expand_btn],
-            layout=widgets.Layout(
-                align_items="center",
-                padding="2px 0",
-                border_bottom="1px solid #f0f0f0",
-            ),
-        )
-        entry["row"] = row
+        def _on_reject(_btn):
+            if checkbox.value:
+                checkbox.value = False
+            card.layout.display = "none"
+
+        def _on_accept(_btn):
+            accept_btn.disabled = True
+
+        reject_btn.on_click(_on_reject)
+        accept_btn.on_click(_on_accept)
+
+        entry["row"] = card
         return entry
 
     def _discover_masks():
         nonlocal _masks
         _masks = []
         mask_list_box.children = []
+        header_label.value = "<div class='nbpoc-section-label'>RESULTS (0)</div>"
 
         masks_dir = _masks_dir_for_series()
         if masks_dir is None:
@@ -412,9 +515,12 @@ def build_seg_viewer(state, viewer):
         for p in dcm_files:
             entry = _build_mask_entry(p)
             _masks.append(entry)
-            rows.append(widgets.VBox([entry["row"], entry["segments_box"]]))
+            rows.append(entry["row"])
 
         mask_list_box.children = rows
+        header_label.value = (
+            f"<div class='nbpoc-section-label'>RESULTS ({len(dcm_files)})</div>"
+        )
         status_html.value = ""
 
     # --- event handlers -----------------------------------------------------
@@ -484,14 +590,12 @@ def build_seg_viewer(state, viewer):
             header,
             status_html,
             mask_list_box,
+            display_controls_label,
             alpha_slider,
             orient_row,
             diagnostics_panel,
         ],
-        layout=widgets.Layout(
-            flex="1", padding="0 0 0 16px",
-            border_left="1px solid #e9ecef",
-        ),
+        layout=widgets.Layout(width="100%", padding="0"),
     )
 
 

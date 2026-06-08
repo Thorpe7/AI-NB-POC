@@ -1,168 +1,84 @@
-"""Dashboard orchestrator: assembles segmentation-focused components."""
+"""Dashboard orchestrator — assembles the modern-gui AppLayout.
+
+Five-region layout filling the viewport:
+
+    +-----------------------------------------------------+
+    |                  top toolbar                        |   header
+    +--------+-----------------------------+--------------+
+    |  scan  |     viewer + overlays       |  inference   |
+    |  list  |                             |    panel     |
+    +--------+-----------------------------+--------------+
+    |                    footer                           |
+    +-----------------------------------------------------+
+
+All styling lives in `utils/styles/dark.css`, injected once at app boot via
+a <style> HTML widget. No inline CSS in this module.
+"""
 
 from __future__ import annotations
 
 import warnings
+from pathlib import Path
 
 import ipywidgets as widgets
 from IPython.display import display
 
 from utils.state import AppState
-from utils.components.app_bar import build_app_bar
+from utils.components.top_toolbar import build_top_toolbar
 from utils.components.file_browser import build_image_browser
 from utils.components.viewer_tab import build_viewer
-from utils.components.segmentation_tab import build_segmentation
-from utils.components.seg_viewer import build_seg_viewer
+from utils.components.inference_panel import build_inference_panel
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-_APP_CSS = """<style>
-.medgemma-app .widget-select select {
-    font-size: 13px;
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-    cursor: pointer;
-    border: 1px solid #dee2e6 !important;
-    border-radius: 6px !important;
-}
-.medgemma-app .widget-text input,
-.medgemma-app .widget-password input,
-.medgemma-app .widget-textarea textarea {
-    border-radius: 6px !important;
-    border: 1px solid #dee2e6 !important;
-}
-.medgemma-app .widget-text input:focus,
-.medgemma-app .widget-password input:focus,
-.medgemma-app .widget-textarea textarea:focus {
-    border-color: #1976d2 !important;
-    box-shadow: 0 0 0 2px rgba(25,118,210,0.12) !important;
-    outline: none !important;
-}
-.medgemma-app .widget-button button {
-    border-radius: 6px !important;
-    font-weight: 500 !important;
-    transition: opacity 0.15s;
-}
-.medgemma-app .widget-button button:hover { opacity: 0.85; }
-.medgemma-sidebar {
-    background-color: #f8f9fa !important;
-    border-right: 1px solid #dee2e6 !important;
-}
-.medgemma-switch .widget-checkbox input[type="checkbox"] {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 40px;
-    height: 22px;
-    background: #adb5bd;
-    border-radius: 11px;
-    position: relative;
-    cursor: pointer;
-    transition: background 0.2s;
-    margin: 0;
-    flex-shrink: 0;
-}
-.medgemma-switch .widget-checkbox input[type="checkbox"]::before {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 18px;
-    height: 18px;
-    background: #fff;
-    border-radius: 50%;
-    transition: transform 0.2s;
-}
-.medgemma-switch .widget-checkbox input[type="checkbox"]:checked {
-    background: #1976d2;
-}
-.medgemma-switch .widget-checkbox input[type="checkbox"]:checked::before {
-    transform: translateX(18px);
-}
-.medgemma-switch .widget-checkbox label {
-    font-size: 13px;
-    font-weight: 500;
-    color: #495057;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-</style>"""
+_STYLES_PATH = Path(__file__).resolve().parent / "styles" / "dark.css"
+
+
+def _load_styles() -> widgets.HTML:
+    """Read dark.css and emit a single <style> HTML widget."""
+    try:
+        css = _STYLES_PATH.read_text()
+    except OSError:
+        css = ""
+    return widgets.HTML(value=f"<style>{css}</style>")
+
+
+def _footer() -> widgets.HTML:
+    return widgets.HTML(
+        value=(
+            "<div class='nbpoc-footer'>"
+            "<span>AI-NB-POC &middot; KServe inference &middot; modern-gui</span>"
+            "</div>"
+        )
+    )
 
 
 def build_and_display_app():
-    """Build the segmentation-focused dashboard and display it."""
+    """Build the modern-gui dashboard and display it."""
 
     state = AppState()
+
+    css = _load_styles()
+    toolbar = build_top_toolbar()
     viewer = build_viewer(state)
-    segmentation = build_segmentation(state)
-    masks_panel = build_seg_viewer(state, viewer)
-    header = build_app_bar()
-
     image_browser = build_image_browser(state, viewer)
+    inference_panel = build_inference_panel(state, viewer)
+    footer = _footer()
 
-    browser_toggle = widgets.Checkbox(
-        value=True,
-        description="Show Image Browser",
-        indent=False,
+    layout = widgets.AppLayout(
+        header=toolbar,
+        left_sidebar=image_browser,
+        center=viewer["viewer_panel"],
+        right_sidebar=inference_panel,
+        footer=footer,
+        pane_widths=["280px", 1, "360px"],
+        pane_heights=["52px", 1, "28px"],
+        merge=False,
     )
-    metadata_toggle = widgets.Checkbox(
-        value=True,
-        description="Show DICOM Metadata",
-        indent=False,
-    )
+    layout.add_class("nbpoc-app")
 
-    def _on_browser_toggle(change):
-        image_browser.layout.display = "" if change["new"] else "none"
-
-    def _apply_metadata_visibility():
-        if metadata_toggle.value and viewer["metadata_html"].value:
-            viewer["info_panel"].layout.display = ""
-        else:
-            viewer["info_panel"].layout.display = "none"
-
-    def _on_metadata_toggle(_change):
-        _apply_metadata_visibility()
-
-    def _on_metadata_content_change(_change):
-        _apply_metadata_visibility()
-
-    browser_toggle.observe(_on_browser_toggle, names="value")
-    metadata_toggle.observe(_on_metadata_toggle, names="value")
-    viewer["metadata_html"].observe(_on_metadata_content_change, names="value")
-
-    toggle_bar = widgets.HBox(
-        [browser_toggle, metadata_toggle],
-        layout=widgets.Layout(
-            padding="8px 16px",
-            gap="24px",
-            border_bottom="1px solid #dee2e6",
-        ),
-    )
-    toggle_bar.add_class("medgemma-switch")
-
-    main_content = widgets.VBox(
-        [
-            viewer["viewer_panel"],
-            widgets.HBox(
-                [segmentation, masks_panel],
-                layout=widgets.Layout(
-                    padding="16px 0 0 0",
-                    border_top="1px solid #e9ecef",
-                    margin="16px 0 0 0",
-                ),
-            ),
-            viewer["info_panel"],
-        ],
-        layout=widgets.Layout(flex="1", padding="16px"),
-    )
-
-    content = widgets.HBox(
-        [image_browser, main_content],
+    container = widgets.VBox(
+        [css, layout],
         layout=widgets.Layout(width="100%"),
     )
-
-    css = widgets.HTML(_APP_CSS)
-    app = widgets.VBox(
-        [css, header, toggle_bar, content],
-        layout=widgets.Layout(width="100%"),
-    )
-    app.add_class("medgemma-app")
-
-    display(app)
+    display(container)

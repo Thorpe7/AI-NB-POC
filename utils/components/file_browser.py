@@ -19,8 +19,9 @@ from utils.dicom_utils import (
 
 _NIFTI_MESSAGE_HTML = (
     "<div style='display:flex;align-items:center;justify-content:center;"
-    "width:100%;min-height:350px;background:#f8f9fa;border-radius:8px;"
-    "border:2px dashed #dee2e6;color:#6c757d;font-size:14px;"
+    "width:100%;min-height:350px;background:var(--bg-panel-alt);"
+    "border-radius:8px;border:2px dashed var(--border-strong);"
+    "color:var(--text-muted);font-size:13px;"
     "flex-direction:column;gap:8px;'>"
     "<span style='font-size:36px;opacity:0.5;'>&#129504;</span>"
     "<span>NIfTI files are not currently displayable.</span></div>"
@@ -29,9 +30,33 @@ _NIFTI_MESSAGE_HTML = (
 
 def _error_card(msg):
     return (
-        f"<div style='color:#d32f2f;background:#fff3f3;padding:10px 12px;"
-        f"border-left:3px solid #d32f2f;border-radius:4px;font-size:12px;"
-        f"margin-top:4px;'>{msg}</div>"
+        f"<div style='color:var(--severity-severe-fg);"
+        f"background:rgba(211,47,47,0.10);padding:8px 12px;"
+        f"border-left:3px solid var(--severity-severe-fg);border-radius:4px;"
+        f"font-size:11.5px;margin-top:4px;'>{msg}</div>"
+    )
+
+
+def _breadcrumb_html(directory) -> str:
+    """Render the current directory as a breadcrumb trail.
+
+    Takes the trailing path segments and renders them separated by ' / ' for
+    visual parity with the clinical-workstation reference. The final segment
+    is the 'current' crumb.
+    """
+    from pathlib import Path as _Path
+    parts = list(_Path(str(directory)).parts)
+    # Trim to last ~4 segments so the breadcrumb fits in the sidebar width
+    trimmed = parts[-4:] if len(parts) > 4 else parts
+    leading = "&hellip; / " if len(parts) > 4 else ""
+    crumbs = []
+    for i, part in enumerate(trimmed):
+        cls = "crumb current" if i == len(trimmed) - 1 else "crumb"
+        crumbs.append(f"<span class='{cls}'>{part}</span>")
+    return (
+        f"<div class='nbpoc-breadcrumb'>{leading}"
+        + "<span class='sep'>/</span>".join(crumbs)
+        + "</div>"
     )
 
 
@@ -81,8 +106,8 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
     )
     breadcrumb = widgets.HTML(
         value=(
-            "<div style='font-size:10px;color:#6c757d;padding:2px 0;'>"
-            "No directory selected</div>"
+            "<div class='nbpoc-breadcrumb'>"
+            "<span class='crumb'>No directory selected</span></div>"
         ),
     )
     file_list = widgets.Select(
@@ -120,14 +145,7 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
         file_list.value = None
         _refreshing[0] = False
 
-        dir_str = str(directory)
-        if len(dir_str) > 30:
-            dir_str = "\u2026" + dir_str[-27:]
-        breadcrumb.value = (
-            f"<div style='font-size:10px;color:#6c757d;padding:2px 0;"
-            f"border-bottom:1px solid #e9ecef;margin-bottom:2px;'>"
-            f"&#128194; {dir_str}</div>"
-        )
+        breadcrumb.value = _breadcrumb_html(directory)
 
     def _on_go(_btn=None):
         p = Path(root_text.value.strip())
@@ -203,30 +221,34 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
     if extra_controls:
         bottom_controls.extend(extra_controls)
 
-    panel = widgets.VBox(
+    title_html = widgets.HTML(
+        f"<div class='nbpoc-section-label' style='padding:12px 12px 4px;'>"
+        f"{title}</div>"
+    )
+    filter_row = widgets.VBox(
         [
-            widgets.HTML(
-                f"<div style='font-size:12px;font-weight:700;color:#495057;"
-                f"padding:0 0 4px;'>{title}</div>"
-            ),
             widgets.HBox(
                 [root_text, up_btn],
-                layout=widgets.Layout(width="100%"),
+                layout=widgets.Layout(width="100%", gap="4px"),
             ),
-            breadcrumb,
-            file_list,
             widgets.HBox(
                 bottom_controls,
-                layout=widgets.Layout(width="100%", padding="4px 0 0 0"),
+                layout=widgets.Layout(width="100%", padding="6px 0 0 0", gap="4px"),
             ),
-            status,
         ],
-        layout=widgets.Layout(
-            width="250px", min_width="250px",
-            padding="8px",
-        ),
+        layout=widgets.Layout(padding="0 12px 8px"),
     )
-    panel.add_class("medgemma-sidebar")
+
+    list_box = widgets.VBox(
+        [file_list],
+        layout=widgets.Layout(padding="0 8px"),
+    )
+
+    panel = widgets.VBox(
+        [title_html, breadcrumb, filter_row, list_box, status],
+        layout=widgets.Layout(width="100%", padding="0"),
+    )
+    panel.add_class("nbpoc-sidebar")
 
     return panel
 
@@ -268,7 +290,7 @@ def build_image_browser(state, viewer):
             image_placeholder.value = _NIFTI_MESSAGE_HTML
             image_placeholder.layout.display = ""
             image_label.value = (
-                f"<div style='font-size:13px;color:#495057;padding:0 0 8px;'>"
+                f"<div style='font-size:12px;color:var(--text);padding:0 0 8px;'>"
                 f"&#129504; <b>{file_path.name}</b></div>"
             )
             metadata_html.value = ""
@@ -300,7 +322,7 @@ def build_image_browser(state, viewer):
         image_widget.layout.display = ""
         image_placeholder.layout.display = "none"
         image_label.value = (
-            f"<div style='font-size:13px;color:#495057;padding:0 0 8px;'>"
+            f"<div style='font-size:12px;color:var(--text);padding:0 0 8px;'>"
             f"&#x1F52C; <b>{file_path.name}</b></div>"
         )
 
@@ -378,7 +400,7 @@ def build_image_browser(state, viewer):
         image_widget.layout.display = ""
         image_placeholder.layout.display = "none"
         image_label.value = (
-            f"<div style='font-size:13px;color:#495057;padding:0 0 8px;'>"
+            f"<div style='font-size:12px;color:var(--text);padding:0 0 8px;'>"
             f"&#x1F52C; <b>{_series_dir[0].name}</b>"
             f" &mdash; {len(datasets)} slices</div>"
         )
@@ -387,7 +409,7 @@ def build_image_browser(state, viewer):
         series_nav.layout.display = ""
         series_info_label.layout.display = ""
         series_info_label.value = (
-            f"<div style='font-size:12px;color:#6c757d;padding:4px 0;"
+            f"<div style='font-size:11.5px;color:var(--text-muted);padding:4px 0;"
             f"text-align:center;min-width:100px;'>"
             f"Slice 1 / {len(datasets)}</div>"
         )
