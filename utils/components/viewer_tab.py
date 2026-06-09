@@ -160,26 +160,29 @@ def build_viewer(state):
         )
 
     prev_btn = widgets.Button(
-        description="", icon="arrow-left",
-        layout=widgets.Layout(width="40px", height="30px"),
+        description="", icon="arrow-up",
+        tooltip="Previous slice",
+        layout=widgets.Layout(width="32px", height="28px"),
     )
     next_btn = widgets.Button(
-        description="", icon="arrow-right",
-        layout=widgets.Layout(width="40px", height="30px"),
+        description="", icon="arrow-down",
+        tooltip="Next slice",
+        layout=widgets.Layout(width="32px", height="28px"),
     )
     slice_slider = widgets.IntSlider(
         value=0, min=0, max=0, step=1,
         description="", readout=False, continuous_update=True,
-        layout=widgets.Layout(flex="1", margin="0 12px"),
+        orientation="vertical",
+        layout=widgets.Layout(height="240px", margin="0"),
     )
     _syncing_slider = [False]
-    series_nav = widgets.HBox(
-        [prev_btn, slice_slider, series_info_label, next_btn],
-        layout=widgets.Layout(
-            display="none", align_items="center",
-            justify_content="center", width="100%", padding="4px 0",
-        ),
+    # Vertical scrub stack — prev / slider / next, absolutely positioned on
+    # the right edge of the canvas via the .nbpoc-viewer-slider CSS class.
+    series_nav = widgets.VBox(
+        [prev_btn, slice_slider, next_btn],
+        layout=widgets.Layout(display="none", align_items="center"),
     )
+    series_nav.add_class("nbpoc-viewer-slider")
 
     def _go_to_slice(idx):
         """Navigate to a specific slice index, updating all state and UI."""
@@ -282,19 +285,14 @@ def build_viewer(state):
             overlay_tr,
             overlay_bl,
             overlay_br,
+            series_nav,
         ],
         layout=widgets.Layout(width="100%", flex="1"),
     )
     canvas.add_class("nbpoc-viewer-canvas")
 
-    scrub_box = widgets.Box(
-        [series_nav],
-        layout=widgets.Layout(width="100%"),
-    )
-    scrub_box.add_class("nbpoc-viewer-scrub")
-
     viewer_panel = widgets.VBox(
-        [image_label, canvas, scrub_box],
+        [image_label, canvas],
         layout=widgets.Layout(width="100%", height="100%"),
     )
     viewer_panel.add_class("nbpoc-viewer")

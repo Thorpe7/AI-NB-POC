@@ -391,12 +391,13 @@ def build_seg_viewer(state, viewer):
             "segment_checkboxes": {},
             "expanded": False,
         }
-        # Master enable for the overlay; description doubles as the visible
-        # filename inside the Edit drawer.
+        # Master enable for the overlay — lives alongside Accept/Edit/Reject
+        # so the user can toggle visibility without opening the Edit drawer.
         checkbox = widgets.Checkbox(
             value=False,
-            description="Enable overlay",
+            description="Show",
             indent=False,
+            tooltip="Toggle this mask's overlay on the viewer",
             layout=widgets.Layout(width="auto"),
         )
         # Per-segment toggles, populated lazily once the SEG is parsed.
@@ -423,15 +424,16 @@ def build_seg_viewer(state, viewer):
         edit_btn.add_class("edit")
         reject_btn.add_class("reject")
         action_row = widgets.HBox(
-            [accept_btn, edit_btn, reject_btn],
+            [checkbox, accept_btn, edit_btn, reject_btn],
             layout=widgets.Layout(gap="6px", padding="0"),
         )
         action_row.add_class("nbpoc-card-actions")
 
-        # The Edit drawer holds the enable checkbox + segments box; hidden
-        # by default, revealed by the Edit button.
+        # The Edit drawer holds per-segment toggles; hidden by default,
+        # revealed by the Edit button. The master Show toggle moved up into
+        # the action row.
         drawer = widgets.VBox(
-            [checkbox, segments_box],
+            [segments_box],
             layout=widgets.Layout(display="none"),
         )
         drawer.add_class("nbpoc-card-drawer")

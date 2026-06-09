@@ -346,12 +346,12 @@ def build_image_browser(state, viewer):
     # -- Open Series button and wiring --
 
     open_series_btn = widgets.Button(
-        description="Series",
+        description="Load Entire Series",
         icon="layer-group",
         button_style="warning",
         disabled=True,
         tooltip="Load all DICOMs in this directory as a series",
-        layout=widgets.Layout(width="80px", height="30px"),
+        layout=widgets.Layout(width="auto", min_width="150px", height="30px"),
     )
 
     _series_dir = [None]
