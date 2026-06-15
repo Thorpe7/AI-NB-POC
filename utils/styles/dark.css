@@ -401,6 +401,12 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     flex: 0 0 auto;
 }
 
+.nbpoc-inference-form-zone {
+    flex: 0 0 auto;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border);
+}
+
 .nbpoc-inference-middle {
     flex: 1 1 auto;
     min-height: 0;

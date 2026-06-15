@@ -65,19 +65,26 @@ def build_inference_panel(state, viewer) -> widgets.VBox:
     results_section, display_section = build_seg_viewer(state, viewer)
     results_section.add_class("nbpoc-inference-results")
 
-    # Three-zone layout: a fixed top (header/disclaimer/status), a flexing
-    # middle that contains the segmentation form + results (the only zone
-    # allowed to overflow — its scrollbar is hidden via CSS), and a pinned
-    # bottom holding the DISPLAY/Opacity/orient controls so they're never
-    # clipped regardless of how many result cards exist.
+    # Four-zone layout. The segmentation form (including the Analyze button)
+    # lives in its own fixed zone so it's never inside a scroll region — the
+    # button must always be reachable regardless of how many mask cards the
+    # series adds to `results_section` below. Only `results_section` is
+    # allowed to scroll (with the scrollbar visually hidden). DISPLAY
+    # controls stay pinned to the bottom and never get clipped.
     top_zone = widgets.VBox(
         [header, disclaimer, status_row],
         layout=widgets.Layout(width="100%"),
     )
     top_zone.add_class("nbpoc-inference-top")
 
+    form_zone = widgets.VBox(
+        [segmentation_form],
+        layout=widgets.Layout(width="100%"),
+    )
+    form_zone.add_class("nbpoc-inference-form-zone")
+
     middle_zone = widgets.VBox(
-        [segmentation_form, results_section],
+        [results_section],
         layout=widgets.Layout(width="100%"),
     )
     middle_zone.add_class("nbpoc-inference-middle")
@@ -86,7 +93,7 @@ def build_inference_panel(state, viewer) -> widgets.VBox:
     bottom_zone.add_class("nbpoc-inference-bottom")
 
     body = widgets.VBox(
-        [top_zone, middle_zone, bottom_zone],
+        [top_zone, form_zone, middle_zone, bottom_zone],
         layout=widgets.Layout(width="100%", height="100%"),
     )
     body.add_class("nbpoc-inference")
