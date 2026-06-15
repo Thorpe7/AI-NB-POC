@@ -376,7 +376,7 @@ def build_image_browser(state, viewer):
         pairs = load_series(_series_dir[0])
 
         if not pairs:
-            open_series_btn.description = "Series"
+            open_series_btn.description = "Load Entire Series"
             open_series_btn.disabled = False
             return
 
@@ -418,7 +418,7 @@ def build_image_browser(state, viewer):
         metadata_html.value = metadata_table(meta_rows) if meta_rows else ""
 
         # Restore button
-        open_series_btn.description = "Series"
+        open_series_btn.description = "Load Entire Series"
         open_series_btn.disabled = False
 
     open_series_btn.on_click(_on_open_series)

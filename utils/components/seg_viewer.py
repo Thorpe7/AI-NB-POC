@@ -123,27 +123,28 @@ def build_seg_viewer(state, viewer):
     alpha_slider = widgets.FloatSlider(
         value=0.4, min=0.1, max=0.9, step=0.05,
         description="Opacity:", continuous_update=False,
-        style={"description_width": "60px"},
-        layout=widgets.Layout(width="100%"),
+        style={"description_width": "56px"},
+        readout_format=".2f",
+        layout=widgets.Layout(width="auto", margin="2px 0"),
     )
     rotate_btn = widgets.Button(
         description="Rotate 90°", icon="redo",
         tooltip="Rotate overlays 90° CCW (cycles 0/90/180/270)",
-        layout=widgets.Layout(width="100px", height="28px"),
+        layout=widgets.Layout(width="92px", height="24px"),
     )
     flip_h_btn = widgets.Button(
         description="Flip H", icon="arrows-h",
         tooltip="Mirror overlays horizontally",
-        layout=widgets.Layout(width="74px", height="28px"),
+        layout=widgets.Layout(width="64px", height="24px"),
     )
     flip_v_btn = widgets.Button(
         description="Flip V", icon="arrows-v",
         tooltip="Mirror overlays vertically",
-        layout=widgets.Layout(width="74px", height="28px"),
+        layout=widgets.Layout(width="64px", height="24px"),
     )
     orient_row = widgets.HBox(
         [rotate_btn, flip_h_btn, flip_v_btn],
-        layout=widgets.Layout(gap="6px", padding="4px 0"),
+        layout=widgets.Layout(gap="4px", padding="2px 0 0 0"),
     )
     display_controls_label = widgets.HTML(
         "<div class='nbpoc-section-label' style='padding-top:12px;'>DISPLAY</div>"
@@ -595,16 +596,22 @@ def build_seg_viewer(state, viewer):
 
     _discover_masks()
 
-    return widgets.VBox(
-        [
-            header,
-            status_html,
-            mask_list_box,
-            display_controls_label,
-            alpha_slider,
-            orient_row,
-        ],
+    results_section = widgets.VBox(
+        [header, status_html, mask_list_box],
         layout=widgets.Layout(width="100%", padding="0"),
     )
+    display_section = widgets.VBox(
+        [display_controls_label, alpha_slider, orient_row],
+        layout=widgets.Layout(width="100%", padding="0"),
+    )
+    display_section.add_class("nbpoc-display-controls")
+
+    container = widgets.VBox(
+        [results_section, display_section],
+        layout=widgets.Layout(width="100%", padding="0"),
+    )
+    container.results_section = results_section
+    container.display_section = display_section
+    return container
 
 

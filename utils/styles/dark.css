@@ -391,16 +391,55 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     background-color: var(--bg-panel);
     border-left: 1px solid var(--border);
     height: 100%;
-    overflow-y: auto;
     color: var(--text);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.nbpoc-inference-top {
+    flex: 0 0 auto;
+}
+
+.nbpoc-inference-middle {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 14px;
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
 
-.nbpoc-inference::-webkit-scrollbar {
+.nbpoc-inference-middle::-webkit-scrollbar {
     width: 0 !important;
     height: 0 !important;
     display: none;
+}
+
+.nbpoc-inference-bottom {
+    flex: 0 0 auto;
+    background-color: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    padding: 8px 14px 10px;
+}
+
+.nbpoc-inference-bottom .nbpoc-section-label {
+    padding-top: 0 !important;
+}
+
+/* Tighten the segmentation form so a typical screen never needs the
+   middle zone to scroll at all. */
+.nbpoc-inference-form .widget-vbox > * {
+    margin-top: 4px !important;
+    margin-bottom: 0 !important;
+}
+.nbpoc-inference-form .widget-dropdown,
+.nbpoc-inference-form .widget-text,
+.nbpoc-inference-form .widget-numeric {
+    margin: 2px 0 !important;
+}
+.nbpoc-inference-form .widget-button {
+    margin-top: 6px !important;
 }
 
 .nbpoc-inference-header {

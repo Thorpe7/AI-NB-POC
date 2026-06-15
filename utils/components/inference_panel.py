@@ -65,9 +65,29 @@ def build_inference_panel(state, viewer) -> widgets.VBox:
     seg_viewer_panel = build_seg_viewer(state, viewer)
     seg_viewer_panel.add_class("nbpoc-inference-results")
 
+    # Three-zone layout: a fixed top (header/disclaimer/status), a flexing
+    # middle that contains the segmentation form + results (the only zone
+    # allowed to overflow — its scrollbar is hidden via CSS), and a pinned
+    # bottom holding the DISPLAY/Opacity/orient controls so they're never
+    # clipped regardless of how many result cards exist.
+    top_zone = widgets.VBox(
+        [header, disclaimer, status_row],
+        layout=widgets.Layout(width="100%"),
+    )
+    top_zone.add_class("nbpoc-inference-top")
+
+    middle_zone = widgets.VBox(
+        [segmentation_form, seg_viewer_panel.results_section],
+        layout=widgets.Layout(width="100%"),
+    )
+    middle_zone.add_class("nbpoc-inference-middle")
+
+    bottom_zone = seg_viewer_panel.display_section
+    bottom_zone.add_class("nbpoc-inference-bottom")
+
     body = widgets.VBox(
-        [header, disclaimer, status_row, segmentation_form, seg_viewer_panel],
-        layout=widgets.Layout(width="100%", padding="0 0 12px 0"),
+        [top_zone, middle_zone, bottom_zone],
+        layout=widgets.Layout(width="100%", height="100%"),
     )
     body.add_class("nbpoc-inference")
     return body
