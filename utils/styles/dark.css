@@ -567,17 +567,40 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
 }
 
 .nbpoc-card-actions .widget-checkbox {
-    margin: 0 6px 0 0;
-    padding: 0;
+    margin: 0;
+    padding: 0 10px;
+    height: 26px;
     flex-shrink: 0;
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+}
+
+.nbpoc-card-actions .widget-checkbox:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background-color: var(--bg-panel);
 }
 
 .nbpoc-card-actions .widget-checkbox label {
     font-size: 11.5px;
-    color: var(--text-dim);
+    color: var(--text);
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.nbpoc-card-actions .widget-checkbox input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
 }
 
 .nbpoc-card-action {
@@ -686,6 +709,17 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     border-radius: 4px !important;
     font-size: 12px !important;
     box-shadow: none !important;
+}
+
+.nbpoc-app .widget-text input::placeholder,
+.nbpoc-app .widget-textarea textarea::placeholder,
+.nbpoc-app .widget-password input::placeholder,
+.nbpoc-app .widget-numeric input::placeholder,
+.nbpoc-app .widget-combobox input::placeholder,
+.nbpoc-app input[type="text"]::placeholder,
+.nbpoc-app input[type="number"]::placeholder {
+    color: var(--text-dim) !important;
+    opacity: 1 !important;
 }
 
 .nbpoc-app .widget-text input:focus,
