@@ -229,17 +229,34 @@ def build_segmentation(state):
                 f"<b style='color:var(--text);'>Series:</b> {state.series_dir_name} "
                 f"({n} slice{'s' if n != 1 else ''})</div>"
             )
+            run_button.description = "Analyze Series"
+            run_button.tooltip = f"Run inference on the loaded series ({n} slices)"
             run_button.disabled = False
+        elif state.current_ds is not None:
+            # A single slice is loaded but no series — the current predictors
+            # need a directory, so keep the button disabled and tell the user
+            # what to do next.
+            series_label.value = (
+                "<div style='font-size:11.5px;color:var(--warn-fg);padding:4px 0;'>"
+                "Click <b>Load Entire Series</b> to enable inference for this scan."
+                "</div>"
+            )
+            run_button.description = "Analyze Current Slice"
+            run_button.tooltip = "Load the full series first — inference runs on the directory"
+            run_button.disabled = True
         else:
             series_label.value = (
                 "<div style='font-size:11.5px;color:var(--warn-fg);padding:4px 0;'>"
                 "Load a DICOM series to enable inference."
                 "</div>"
             )
+            run_button.description = "Analyze"
+            run_button.tooltip = "Load a DICOM series first"
             run_button.disabled = True
 
     state.observe(
-        _refresh_series_label, names=["series_dir_name", "series_datasets"]
+        _refresh_series_label,
+        names=["series_dir_name", "series_datasets", "current_ds"],
     )
     _refresh_series_label()
 

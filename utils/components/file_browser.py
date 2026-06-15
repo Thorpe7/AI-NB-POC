@@ -257,6 +257,40 @@ def _build_browser(title, default_path, file_filter, file_icon, on_file_click,
 # Public builders
 # =========================================================================
 
+def _build_selection_mode_indicator(state):
+    """Two-pill SLICE / SERIES indicator highlighting the active mode.
+
+    Active mode is derived from state:
+      * `series_datasets` non-empty → SERIES mode
+      * `current_ds` set but no series → SLICE mode
+      * neither → both pills shown dim
+    """
+    indicator = widgets.HTML(value="")
+    indicator.add_class("nbpoc-mode-indicator-wrap")
+
+    def _render(*_):
+        n = len(state.series_datasets)
+        has_current = state.current_ds is not None
+        if n > 0:
+            mode = "series"
+        elif has_current:
+            mode = "slice"
+        else:
+            mode = "none"
+        indicator.value = (
+            "<div class='nbpoc-mode-indicator'>"
+            f"<span class='nbpoc-mode-pill{' active' if mode == 'slice' else ''}'>"
+            "Slice</span>"
+            f"<span class='nbpoc-mode-pill{' active' if mode == 'series' else ''}'>"
+            "Series</span>"
+            "</div>"
+        )
+
+    state.observe(_render, names=["series_datasets", "current_ds"])
+    _render()
+    return indicator
+
+
 def build_image_browser(state, viewer):
     """Build DICOM image file browser (left sidebar)."""
 
@@ -423,7 +457,7 @@ def build_image_browser(state, viewer):
 
     open_series_btn.on_click(_on_open_series)
 
-    return _build_browser(
+    panel = _build_browser(
         title="&#x1F52C; Image Files",
         default_path=LOCAL_DATA_ROOT,
         file_filter=lambda p: is_dicom_candidate(p) or is_nifti_file(p),
@@ -433,3 +467,11 @@ def build_image_browser(state, viewer):
         extra_controls=[open_series_btn],
         on_dir_change=_on_dir_change,
     )
+
+    # Inject the SLICE / SERIES mode indicator below the title so the user
+    # can see at a glance what's currently loaded.
+    indicator = _build_selection_mode_indicator(state)
+    new_children = list(panel.children)
+    new_children.insert(1, indicator)
+    panel.children = new_children
+    return panel

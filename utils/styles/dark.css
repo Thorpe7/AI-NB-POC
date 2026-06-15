@@ -184,6 +184,38 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     padding: 0;
 }
 
+.nbpoc-mode-indicator-wrap {
+    padding: 8px 12px 4px;
+}
+
+.nbpoc-mode-indicator {
+    display: flex;
+    gap: 4px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 3px;
+}
+
+.nbpoc-mode-pill {
+    flex: 1;
+    text-align: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.nbpoc-mode-pill.active {
+    background-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
 .nbpoc-breadcrumb {
     padding: 10px 14px;
     font-size: 11.5px;
