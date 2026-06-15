@@ -69,7 +69,7 @@ def build_viewer(state):
     image_widget = widgets.Image(
         format="png",
         layout=widgets.Layout(
-            max_width="100%", max_height="80vh", display="none",
+            width="100%", height="100%", display="none",
             object_fit="contain",
         ),
     )
@@ -81,9 +81,9 @@ def build_viewer(state):
             display="flex",
             justify_content="center",
             align_items="center",
-            width="100%",
+            flex="1",
+            align_self="stretch",
             min_height="500px",
-            max_height="80vh",
             overflow="hidden",
         ),
     )

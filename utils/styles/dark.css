@@ -51,6 +51,7 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI",
                  Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 13px;
+    height: 100vh;
 }
 
 .nbpoc-app *, .nbpoc-app *::before, .nbpoc-app *::after {
@@ -305,12 +306,19 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     min-height: 500px;
 }
 
-.nbpoc-viewer-canvas .widget-image img,
 .nbpoc-viewer-canvas .widget-image {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    background-color: transparent;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background-color: transparent !important;
+}
+
+.nbpoc-viewer-canvas .widget-image img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    background-color: transparent !important;
 }
 
 .nbpoc-viewer-overlay {
