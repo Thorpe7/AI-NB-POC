@@ -716,11 +716,9 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     width: 100%;
     background-color: var(--bg-panel);
     border-top: 1px solid var(--border);
-    padding: 8px 16px 8px !important;
+    padding: 8px 16px 10px !important;
     margin: 0 !important;
-    max-height: 320px;
-    overflow-y: auto;
-    scrollbar-width: thin;
+    overflow: visible !important;
 }
 
 .nbpoc-diagnostics-dock .nbpoc-section-label {
