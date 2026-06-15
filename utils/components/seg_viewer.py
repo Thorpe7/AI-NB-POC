@@ -606,12 +606,6 @@ def build_seg_viewer(state, viewer):
     )
     display_section.add_class("nbpoc-display-controls")
 
-    container = widgets.VBox(
-        [results_section, display_section],
-        layout=widgets.Layout(width="100%", padding="0"),
-    )
-    container.results_section = results_section
-    container.display_section = display_section
-    return container
+    return results_section, display_section
 
 

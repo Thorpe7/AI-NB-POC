@@ -62,8 +62,8 @@ def build_inference_panel(state, viewer) -> widgets.VBox:
     segmentation_form = build_segmentation(state)
     segmentation_form.add_class("nbpoc-inference-form")
 
-    seg_viewer_panel = build_seg_viewer(state, viewer)
-    seg_viewer_panel.add_class("nbpoc-inference-results")
+    results_section, display_section = build_seg_viewer(state, viewer)
+    results_section.add_class("nbpoc-inference-results")
 
     # Three-zone layout: a fixed top (header/disclaimer/status), a flexing
     # middle that contains the segmentation form + results (the only zone
@@ -77,12 +77,12 @@ def build_inference_panel(state, viewer) -> widgets.VBox:
     top_zone.add_class("nbpoc-inference-top")
 
     middle_zone = widgets.VBox(
-        [segmentation_form, seg_viewer_panel.results_section],
+        [segmentation_form, results_section],
         layout=widgets.Layout(width="100%"),
     )
     middle_zone.add_class("nbpoc-inference-middle")
 
-    bottom_zone = seg_viewer_panel.display_section
+    bottom_zone = display_section
     bottom_zone.add_class("nbpoc-inference-bottom")
 
     body = widgets.VBox(
