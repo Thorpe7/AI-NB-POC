@@ -44,30 +44,14 @@ def _load_styles() -> widgets.HTML:
     return widgets.HTML(value=f"<style>{css}</style>")
 
 
-def _build_footer(state) -> widgets.VBox:
-    """Bottom region: full-width collapsible diagnostics drawer + brand bar.
-
-    The diagnostics panel auto-hides itself when no sibling
-    ``*_diagnostics.json`` exists for the loaded series, so the brand bar
-    is the only visible chrome on series without diagnostics.
-    """
-    diagnostics_panel = build_diagnostics_panel(state)
-    diagnostics_panel.add_class("nbpoc-diagnostics-dock")
-
-    brand = widgets.HTML(
+def _footer() -> widgets.HTML:
+    return widgets.HTML(
         value=(
             "<div class='nbpoc-footer'>"
             "<span>AI-NB-POC &middot; KServe inference &middot; modern-gui</span>"
             "</div>"
         )
     )
-
-    footer = widgets.VBox(
-        [diagnostics_panel, brand],
-        layout=widgets.Layout(width="100%"),
-    )
-    footer.add_class("nbpoc-footer-dock")
-    return footer
 
 
 def build_and_display_app():
@@ -80,7 +64,7 @@ def build_and_display_app():
     viewer = build_viewer(state)
     image_browser = build_image_browser(state, viewer)
     inference_panel = build_inference_panel(state, viewer)
-    footer = _build_footer(state)
+    footer = _footer()
 
     layout = widgets.AppLayout(
         header=toolbar,
@@ -89,13 +73,22 @@ def build_and_display_app():
         right_sidebar=inference_panel,
         footer=footer,
         pane_widths=["280px", 1, "360px"],
-        pane_heights=["52px", 1, "auto"],
+        pane_heights=["52px", 1, "28px"],
         merge=False,
     )
     layout.add_class("nbpoc-app")
 
+    # Diagnostics dock lives BELOW the AppLayout in the outer flex column.
+    # ipywidgets AppLayout only accepts px/fr for pane_heights, so a dynamic
+    # auto-sized footer row isn't possible — this is the workaround. The
+    # dock's container is display:none when no diagnostics JSON exists for
+    # the current series, leaving just the AppLayout's brand-bar footer.
+    diagnostics_dock = build_diagnostics_panel(state)
+    diagnostics_dock.add_class("nbpoc-diagnostics-dock")
+
     container = widgets.VBox(
-        [css, layout],
-        layout=widgets.Layout(width="100%"),
+        [css, layout, diagnostics_dock],
+        layout=widgets.Layout(width="100%", height="100vh"),
     )
+    container.add_class("nbpoc-shell")
     display(container)

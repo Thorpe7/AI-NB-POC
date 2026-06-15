@@ -45,13 +45,19 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
 
 /* --- App root --------------------------------------------------------- */
 
+.nbpoc-shell {
+    height: 100vh;
+    overflow: hidden;
+}
+
 .nbpoc-app {
     background-color: var(--bg-root);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI",
                  Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 13px;
-    height: 100vh;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .nbpoc-app *, .nbpoc-app *::before, .nbpoc-app *::after {
@@ -662,16 +668,13 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
 
 /* --- Bottom diagnostics dock ----------------------------------------- */
 
-.nbpoc-footer-dock {
+.nbpoc-diagnostics-dock {
+    flex: 0 0 auto;
+    width: 100%;
     background-color: var(--bg-panel);
     border-top: 1px solid var(--border);
-    width: 100%;
-}
-
-.nbpoc-diagnostics-dock {
-    padding: 8px 16px 4px !important;
+    padding: 8px 16px 8px !important;
     margin: 0 !important;
-    border-bottom: 1px solid var(--border);
     max-height: 320px;
     overflow-y: auto;
     scrollbar-width: thin;
