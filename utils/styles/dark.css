@@ -660,6 +660,27 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
 
 .nbpoc-card-diag-chip:hover { color: var(--accent); }
 
+/* --- Bottom diagnostics dock ----------------------------------------- */
+
+.nbpoc-footer-dock {
+    background-color: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    width: 100%;
+}
+
+.nbpoc-diagnostics-dock {
+    padding: 8px 16px 4px !important;
+    margin: 0 !important;
+    border-bottom: 1px solid var(--border);
+    max-height: 320px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.nbpoc-diagnostics-dock .nbpoc-section-label {
+    padding-top: 0 !important;
+}
+
 /* --- Footer ----------------------------------------------------------- */
 
 .nbpoc-footer {

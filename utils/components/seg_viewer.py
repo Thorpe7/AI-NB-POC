@@ -20,8 +20,6 @@ from PIL import Image
 
 from utils.dicom_utils import load_dicom_seg
 
-from utils.components.diagnostics_panel import build_diagnostics_panel
-
 _MASKS_SUBDIR = "masks"
 
 
@@ -597,8 +595,6 @@ def build_seg_viewer(state, viewer):
 
     _discover_masks()
 
-    diagnostics_panel = build_diagnostics_panel(state)
-
     return widgets.VBox(
         [
             header,
@@ -607,7 +603,6 @@ def build_seg_viewer(state, viewer):
             display_controls_label,
             alpha_slider,
             orient_row,
-            diagnostics_panel,
         ],
         layout=widgets.Layout(width="100%", padding="0"),
     )
