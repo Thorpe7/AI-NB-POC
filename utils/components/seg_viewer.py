@@ -393,13 +393,25 @@ def build_seg_viewer(state, viewer):
         }
         # Master enable for the overlay — lives alongside Accept/Edit/Reject
         # so the user can toggle visibility without opening the Edit drawer.
-        checkbox = widgets.Checkbox(
+        checkbox = widgets.ToggleButton(
             value=False,
             description="Show",
-            indent=False,
+            icon="eye-slash",
             tooltip="Toggle this mask's overlay on the viewer",
-            layout=widgets.Layout(width="auto"),
+            layout=widgets.Layout(width="auto", height="26px"),
         )
+        checkbox.add_class("nbpoc-card-action")
+        checkbox.add_class("show")
+
+        def _sync_show_label(change):
+            if change["new"]:
+                checkbox.description = "Hide"
+                checkbox.icon = "eye"
+            else:
+                checkbox.description = "Show"
+                checkbox.icon = "eye-slash"
+
+        checkbox.observe(_sync_show_label, names="value")
         # Per-segment toggles, populated lazily once the SEG is parsed.
         segments_box = widgets.VBox([], layout=widgets.Layout(display="none"))
 
