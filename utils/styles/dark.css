@@ -514,6 +514,17 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     color: var(--text);
     font-size: 12.5px;
     line-height: 1.4;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    flex-shrink: 0 !important;
+}
+
+.nbpoc-card > .widget-vbox,
+.nbpoc-card .widget-vbox,
+.nbpoc-card .widget-hbox {
+    max-height: none !important;
+    overflow: visible !important;
 }
 
 .nbpoc-card.normal { border-left: 3px solid var(--severity-normal-fg); }
@@ -567,11 +578,18 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
 .nbpoc-card-meta .sep { color: var(--text-dim); }
 
 .nbpoc-card-actions {
-    display: flex;
+    display: flex !important;
     gap: 6px;
     margin-top: 6px;
     align-items: center;
     flex-wrap: wrap;
+    overflow: visible !important;
+    max-height: none !important;
+}
+
+.nbpoc-card-actions .widget-toggle-button {
+    display: inline-flex !important;
+    overflow: visible !important;
 }
 
 .nbpoc-card-action.show button {
