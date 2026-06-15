@@ -468,7 +468,7 @@ def build_seg_viewer(state, viewer):
 
         card = widgets.VBox(
             [title_html, action_row, drawer],
-            layout=widgets.Layout(margin="0 0 10px 0"),
+            layout=widgets.Layout(margin="0 0 4px 0"),
         )
         card.add_class("nbpoc-card")
         card.add_class("normal")
