@@ -119,7 +119,7 @@ def build_seg_viewer(state, viewer):
     )
     status_html = widgets.HTML(value="")
     mask_list_box = widgets.VBox([], layout=widgets.Layout(padding="4px 0"))
-    legend_box = widgets.HTML(value="")
+    legend_target = viewer.get("legend_overlay") if isinstance(viewer, dict) else None
 
     alpha_slider = widgets.FloatSlider(
         value=0.4, min=0.1, max=0.9, step=0.05,
@@ -190,8 +190,10 @@ def build_seg_viewer(state, viewer):
         return arr
 
     def _update_legend():
-        """Render a color/label legend for every segment currently enabled."""
-        items = []
+        """Render a color/label legend over the image canvas (left edge)."""
+        if legend_target is None:
+            return
+        rows = []
         seen = set()
         for entry in _masks:
             if not entry["checkbox"].value or entry["parsed"] is None:
@@ -208,26 +210,13 @@ def build_seg_viewer(state, viewer):
                     continue
                 seen.add(label)
                 r, g, b = info["color"]
-                items.append(
-                    "<span style='display:inline-flex;align-items:center;"
-                    "margin-right:14px;font-size:12px;color:#495057;'>"
-                    f"<span style='display:inline-block;width:12px;height:12px;"
-                    f"background:rgb({r},{g},{b});border-radius:2px;"
-                    "border:1px solid rgba(0,0,0,0.15);margin-right:6px;'></span>"
-                    f"{label}</span>"
+                rows.append(
+                    "<div class='nbpoc-viewer-legend-row'>"
+                    f"<span class='swatch' style='background:rgb({r},{g},{b});'></span>"
+                    f"<span class='label'>{label}</span>"
+                    "</div>"
                 )
-        if items:
-            legend_box.value = (
-                "<div style='padding:6px 10px;background:#f8f9fa;"
-                "border-radius:4px;margin:4px 0 8px;'>"
-                "<span style='color:#6c757d;font-size:11px;"
-                "text-transform:uppercase;letter-spacing:0.04em;margin-right:10px;'>"
-                "Legend</span>"
-                + "".join(items)
-                + "</div>"
-            )
-        else:
-            legend_box.value = ""
+        legend_target.value = "".join(rows)
 
     def _active_layers():
         """Return list of (by_sop, segments, segments_enabled) for enabled masks."""
@@ -640,7 +629,7 @@ def build_seg_viewer(state, viewer):
     _discover_masks()
 
     results_section = widgets.VBox(
-        [header, status_html, mask_list_box, legend_box],
+        [header, status_html, mask_list_box],
         layout=widgets.Layout(width="100%", padding="0"),
     )
     display_section = widgets.VBox(

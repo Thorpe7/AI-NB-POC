@@ -384,6 +384,47 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     color: var(--text-dim);
 }
 
+.nbpoc-viewer-legend {
+    position: absolute;
+    top: 50%;
+    left: 16px;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 10px;
+    background-color: rgba(0, 0, 0, 0.65);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.nbpoc-viewer-legend:empty {
+    display: none;
+}
+
+.nbpoc-viewer-legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.nbpoc-viewer-legend-row .swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    flex-shrink: 0;
+}
+
+.nbpoc-viewer-legend-row .label {
+    white-space: nowrap;
+}
+
 .nbpoc-viewer-scrub {
     height: 28px;
     background-color: var(--bg-panel);

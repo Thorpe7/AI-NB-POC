@@ -112,6 +112,9 @@ def build_viewer(state):
         ov.add_class("nbpoc-viewer-overlay")
         ov.add_class(cls)
 
+    legend_overlay = widgets.HTML(value="")
+    legend_overlay.add_class("nbpoc-viewer-legend")
+
     def _update_overlays():
         ds = state.current_ds
         if ds is None:
@@ -285,6 +288,7 @@ def build_viewer(state):
             overlay_tr,
             overlay_bl,
             overlay_br,
+            legend_overlay,
             series_nav,
         ],
         layout=widgets.Layout(width="100%", flex="1"),
@@ -316,6 +320,7 @@ def build_viewer(state):
         "image_container": image_container,
         "image_placeholder": image_placeholder,
         "image_label": image_label,
+        "legend_overlay": legend_overlay,
         "metadata_html": metadata_html,
         "metadata_table": _metadata_table,
         "series_nav": series_nav,
