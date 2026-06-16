@@ -64,14 +64,18 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     box-sizing: border-box;
 }
 
-.nbpoc-shell, .nbpoc-shell * {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+/* The AppLayout and the viewer column must never scroll. A silently
+   scrollable parent (overflow:auto + hidden scrollbar) intercepts wheel
+   events before they reach the image, breaking slice scroll. */
+.nbpoc-app,
+.nbpoc-app .widget-appLayout {
+    overflow: hidden;
+    min-height: 0;
 }
 
-.nbpoc-shell::-webkit-scrollbar,
-.nbpoc-shell *::-webkit-scrollbar {
-    display: none;
+.nbpoc-viewer {
+    overflow: hidden !important;
+    min-height: 0;
 }
 
 /* AppLayout grid — keep panes flush against each other */
