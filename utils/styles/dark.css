@@ -872,6 +872,15 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     accent-color: var(--accent);
 }
 
+/* Slider readout (the numeric value on the right of a FloatSlider/IntSlider) */
+.nbpoc-app .widget-slider .widget-readout,
+.nbpoc-app .widget-readout {
+    color: var(--text) !important;
+    background-color: var(--bg-input) !important;
+    border: 1px solid var(--border-strong) !important;
+    border-radius: 3px !important;
+}
+
 /* IntSlider track in dark mode */
 .nbpoc-app .widget-slider .slider-track,
 .nbpoc-app .ui-slider {
