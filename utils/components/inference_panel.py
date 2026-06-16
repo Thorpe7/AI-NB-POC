@@ -34,12 +34,16 @@ _DISCLAIMER_HTML = (
     "</div>"
 )
 
-_STATUS_HTML = (
-    "<div class='nbpoc-status-row'>"
-    "<span class='nbpoc-status'><span class='dot'></span> Ready</span>"
-    "<button class='nbpoc-stop-btn' type='button'>Stop</button>"
-    "</div>"
-)
+def _status_html(status: str) -> str:
+    is_running = status == "running"
+    cls = "nbpoc-status running" if is_running else "nbpoc-status"
+    label = "Running" if is_running else "Ready"
+    return (
+        "<div class='nbpoc-status-row'>"
+        f"<span class='{cls}'><span class='dot'></span> {label}</span>"
+        "<button class='nbpoc-stop-btn' type='button'>Stop</button>"
+        "</div>"
+    )
 
 
 def build_inference_panel(state, viewer) -> widgets.VBox:
@@ -57,7 +61,12 @@ def build_inference_panel(state, viewer) -> widgets.VBox:
 
     header = widgets.HTML(value=_HEADER_HTML)
     disclaimer = widgets.HTML(value=_DISCLAIMER_HTML)
-    status_row = widgets.HTML(value=_STATUS_HTML)
+    status_row = widgets.HTML(value=_status_html(state.inference_status))
+
+    def _on_status_change(change):
+        status_row.value = _status_html(change["new"])
+
+    state.observe(_on_status_change, names="inference_status")
 
     segmentation_form = build_segmentation(state)
     segmentation_form.add_class("nbpoc-inference-form")

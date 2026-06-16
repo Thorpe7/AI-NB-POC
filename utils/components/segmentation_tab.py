@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 
@@ -376,17 +377,14 @@ def build_segmentation(state):
             payload["roi_subset"] = roi
         return payload, None
 
-    def _on_run(_btn):
-        payload, err = _build_payload()
-        if err:
-            response_area.value = _error_card(err)
-            return
+    # Single-flight guard. While a job is running, the run_button is disabled
+    # so a second click can't race in. _job_token bumps on each click so any
+    # stale thread that returns after a reset can detect that and bail.
+    _job_token = [0]
 
-        model_name = TASKS[task_dropdown.value]
-        run_button.disabled = True
-        spinner.value = _SPINNER_HTML
+    def _run_in_thread(payload, model_name, token):
         t0 = time.time()
-
+        result_html = None
         try:
             result = predict(payload, model_name)
             elapsed = time.time() - t0
@@ -397,23 +395,22 @@ def build_segmentation(state):
                 try:
                     local_seg = translate_pod_path_to_local(seg_path)
                 except ValueError as e:
-                    response_area.value = _error_card(
+                    result_html = _error_card(
                         f"Segmentation succeeded but seg_path could not be "
                         f"translated: {e}"
                     )
-                    return
 
-            predictor_elapsed = float(result.get("elapsed_s", 0.0))
-            footer = (
-                f"<div style='font-size:10.5px;color:var(--text-dim);margin-top:8px;'>"
-                f"Response: {elapsed:.1f}s &nbsp;&middot;&nbsp; "
-                f"Predictor: {predictor_elapsed:.1f}s &nbsp;&middot;&nbsp; "
-                f"Refresh the results section to load the new mask.</div>"
-            )
-            response_area.value = _response_card(result, local_seg) + footer
-
+            if result_html is None:
+                predictor_elapsed = float(result.get("elapsed_s", 0.0))
+                footer = (
+                    f"<div style='font-size:10.5px;color:var(--text-dim);margin-top:8px;'>"
+                    f"Response: {elapsed:.1f}s &nbsp;&middot;&nbsp; "
+                    f"Predictor: {predictor_elapsed:.1f}s &nbsp;&middot;&nbsp; "
+                    f"Refresh the results section to load the new mask.</div>"
+                )
+                result_html = _response_card(result, local_seg) + footer
         except requests.Timeout:
-            response_area.value = _error_card(
+            result_html = _error_card(
                 "Request timed out. KServe may be cold-starting "
                 "(can take several minutes on first request)."
             )
@@ -423,16 +420,42 @@ def build_segmentation(state):
                 body = e.response.text[:500]
             except Exception:
                 pass
-            response_area.value = _error_card(
+            result_html = _error_card(
                 f"HTTP {e.response.status_code} from predictor: {body}"
             )
         except requests.RequestException as e:
-            response_area.value = _error_card(f"Request failed: {e}")
+            result_html = _error_card(f"Request failed: {e}")
         except Exception as e:
-            response_area.value = _error_card(f"Unexpected error: {e}")
+            result_html = _error_card(f"Unexpected error: {e}")
         finally:
-            run_button.disabled = not state.series_dir_path
+            if token != _job_token[0]:
+                # A newer job was kicked off (shouldn't happen with the
+                # disable-while-running guard, but be safe). Discard.
+                return
+            response_area.value = result_html or _error_card("Unknown error.")
             spinner.value = ""
+            state.inference_status = "ready"
+            run_button.disabled = not state.series_dir_path
+
+    def _on_run(_btn):
+        payload, err = _build_payload()
+        if err:
+            response_area.value = _error_card(err)
+            return
+
+        model_name = TASKS[task_dropdown.value]
+        _job_token[0] += 1
+        token = _job_token[0]
+
+        run_button.disabled = True
+        spinner.value = _SPINNER_HTML
+        state.inference_status = "running"
+
+        threading.Thread(
+            target=_run_in_thread,
+            args=(payload, model_name, token),
+            daemon=True,
+        ).start()
 
     run_button.on_click(_on_run)
 

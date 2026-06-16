@@ -20,3 +20,6 @@ class AppState(traitlets.HasTraits):
     series_index = traitlets.Int(default_value=0)
     series_dir_name = traitlets.Unicode(default_value="")
     series_dir_path = traitlets.Unicode(default_value="")
+
+    # Inference job state — "ready" or "running". One job at a time.
+    inference_status = traitlets.Unicode(default_value="ready")
