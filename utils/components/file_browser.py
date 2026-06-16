@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import ipywidgets as widgets
@@ -399,61 +400,74 @@ def build_image_browser(state, viewer):
             count = 0
         open_series_btn.disabled = count < 2
 
+    # Stale-load guard: each click bumps the token. A worker that finishes
+    # after a newer click bails before touching state, so a slow load can't
+    # clobber a fast follow-up selection.
+    _load_token = [0]
+
     def _on_open_series(_btn):
         if _series_dir[0] is None:
             return
 
-        # Loading state
+        series_dir = _series_dir[0]
+        _load_token[0] += 1
+        token = _load_token[0]
+
         open_series_btn.description = "Loading…"
         open_series_btn.disabled = True
 
-        pairs = load_series(_series_dir[0])
+        def _load_in_thread():
+            try:
+                pairs = load_series(series_dir)
+            except Exception:
+                pairs = []
 
-        if not pairs:
+            if token != _load_token[0]:
+                return
+
+            if not pairs:
+                open_series_btn.description = "Load Entire Series"
+                open_series_btn.disabled = False
+                return
+
+            datasets = [ds for ds, _png in pairs]
+            png_cache = [png for _ds, png in pairs]
+
+            state.series_datasets = datasets
+            state.series_png_cache = png_cache
+            state.series_index = 0
+            state.series_dir_name = series_dir.name
+            state.series_dir_path = str(series_dir.resolve())
+
+            state.current_ds = datasets[0]
+            state.current_png_bytes = png_cache[0]
+            state.current_file_name = f"{series_dir.name} [1/{len(datasets)}]"
+            state.current_file_path = ""
+
+            image_widget.value = png_cache[0]
+            image_widget.layout.display = ""
+            image_placeholder.layout.display = "none"
+            image_label.value = (
+                f"<div style='font-size:12px;color:var(--text);padding:0 0 8px;'>"
+                f"&#x1F52C; <b>{series_dir.name}</b>"
+                f" &mdash; {len(datasets)} slices</div>"
+            )
+
+            series_nav.layout.display = ""
+            series_info_label.layout.display = ""
+            series_info_label.value = (
+                f"<div style='font-size:11.5px;color:var(--text-muted);padding:4px 0;"
+                f"text-align:center;min-width:100px;'>"
+                f"Slice 1 / {len(datasets)}</div>"
+            )
+
+            meta_rows = extract_metadata(datasets[0])
+            metadata_html.value = metadata_table(meta_rows) if meta_rows else ""
+
             open_series_btn.description = "Load Entire Series"
             open_series_btn.disabled = False
-            return
 
-        datasets = [ds for ds, _png in pairs]
-        png_cache = [png for _ds, png in pairs]
-
-        state.series_datasets = datasets
-        state.series_png_cache = png_cache
-        state.series_index = 0
-        state.series_dir_name = _series_dir[0].name
-        state.series_dir_path = str(_series_dir[0].resolve())
-
-        # Set initial current slice
-        state.current_ds = datasets[0]
-        state.current_png_bytes = png_cache[0]
-        state.current_file_name = f"{_series_dir[0].name} [1/{len(datasets)}]"
-        state.current_file_path = ""
-
-        # Show image, hide placeholder
-        image_widget.value = png_cache[0]
-        image_widget.layout.display = ""
-        image_placeholder.layout.display = "none"
-        image_label.value = (
-            f"<div style='font-size:12px;color:var(--text);padding:0 0 8px;'>"
-            f"&#x1F52C; <b>{_series_dir[0].name}</b>"
-            f" &mdash; {len(datasets)} slices</div>"
-        )
-
-        # Show series navigation
-        series_nav.layout.display = ""
-        series_info_label.layout.display = ""
-        series_info_label.value = (
-            f"<div style='font-size:11.5px;color:var(--text-muted);padding:4px 0;"
-            f"text-align:center;min-width:100px;'>"
-            f"Slice 1 / {len(datasets)}</div>"
-        )
-
-        meta_rows = extract_metadata(datasets[0])
-        metadata_html.value = metadata_table(meta_rows) if meta_rows else ""
-
-        # Restore button
-        open_series_btn.description = "Load Entire Series"
-        open_series_btn.disabled = False
+        threading.Thread(target=_load_in_thread, daemon=True).start()
 
     open_series_btn.on_click(_on_open_series)
 

@@ -325,6 +325,15 @@ def build_segmentation(state):
     state.observe(_refresh_brainseg_scans, names="series_dir_path")
     _refresh_brainseg_scans()
 
+    def _on_series_change(_change):
+        # Wipe the previous run's result card so it doesn't masquerade as
+        # the new series' result. If a job is in flight we leave it alone —
+        # the thread will write the actual outcome.
+        if state.inference_status != "running":
+            response_area.value = _PLACEHOLDER
+
+    state.observe(_on_series_change, names="series_dir_path")
+
     def _parse_roi(value: str) -> list[str] | None:
         items = [s.strip() for s in value.split(",") if s.strip()]
         return items or None
