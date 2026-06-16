@@ -282,18 +282,21 @@ def build_viewer(state):
     _wheel_img.on_dom_event(_on_wheel)
     _key_event.on_dom_event(_on_key)
 
-    # Native-scroll wheel capture. ipyevents 'wheel' is unreliable under
-    # Voila / certain browsers (registers as passive, events are dropped).
-    # The results section works because it uses native browser scrolling —
-    # mirror that here: an overlay div with overflow-y:scroll catches the
-    # wheel as a native scroll, ipyevents 'scroll' fires reliably, and a JS
-    # shim resets scrollTop near boundaries so the user can scroll forever.
-    _scroll_spacer = widgets.HTML(value="<div style='height:200vh;'></div>")
-    scroll_capture = widgets.Box(
-        [_scroll_spacer],
-        layout=widgets.Layout(),
+    # Hidden buttons driven by a JS-side wheel listener. ipyevents 'wheel'
+    # is unreliable under Voila / passive-listener browsers; falling back
+    # to button.click() from JS uses only the ipywidgets comm channel that
+    # already works for normal buttons. The listener attaches to the canvas
+    # element by class, so it survives widget re-renders.
+    _wheel_up_btn = widgets.Button(
+        description="", layout=widgets.Layout(display="none"),
     )
-    scroll_capture.add_class("nbpoc-viewer-scroll-capture")
+    _wheel_up_btn.add_class("nbpoc-wheel-up")
+    _wheel_down_btn = widgets.Button(
+        description="", layout=widgets.Layout(display="none"),
+    )
+    _wheel_down_btn.add_class("nbpoc-wheel-down")
+    _wheel_up_btn.on_click(lambda _b: _go_to_slice(state.series_index - 1))
+    _wheel_down_btn.on_click(lambda _b: _go_to_slice(state.series_index + 1))
 
     canvas = widgets.Box(
         [
@@ -303,66 +306,31 @@ def build_viewer(state):
             overlay_bl,
             overlay_br,
             legend_overlay,
-            scroll_capture,
             series_nav,
+            _wheel_up_btn,
+            _wheel_down_btn,
         ],
         layout=widgets.Layout(width="100%", flex="1"),
     )
     canvas.add_class("nbpoc-viewer-canvas")
 
-    _wheel_canvas = Event(
-        source=canvas,
-        watched_events=["wheel"],
-    )
-    _wheel_canvas.on_dom_event(_on_wheel)
-
-    _last_scroll_top = [None]
-
-    def _on_scroll(event):
-        top = event.get("scrollTop", 0)
-        if _last_scroll_top[0] is None:
-            _last_scroll_top[0] = top
-            return
-        delta = top - _last_scroll_top[0]
-        # Filter the JS-side boundary reset (huge jumps) and noise.
-        if abs(delta) > 500:
-            _last_scroll_top[0] = top
-            return
-        if abs(delta) < 6:
-            return
-        if delta > 0:
-            _go_to_slice(state.series_index + 1)
-        else:
-            _go_to_slice(state.series_index - 1)
-        _last_scroll_top[0] = top
-
-    _scroll_evt = Event(
-        source=scroll_capture,
-        watched_events=["scroll"],
-        wait=10,
-    )
-    _scroll_evt.on_dom_event(_on_scroll)
-
-    # One-shot JS that centers scrollTop and re-centers when nearing the
-    # boundary so wheel scroll never hits the end of the spacer.
-    _scroll_reset_js = widgets.HTML(value="""
+    _wheel_js = widgets.HTML(value="""
 <script>
 (function() {
     function setup() {
-        const wrapper = document.querySelector('.nbpoc-viewer-scroll-capture');
-        if (!wrapper) return setTimeout(setup, 200);
-        if (wrapper.dataset.nbpocScrollBound) return;
-        wrapper.dataset.nbpocScrollBound = '1';
-        const center = () => {
-            const max = wrapper.scrollHeight - wrapper.clientHeight;
-            wrapper.scrollTop = Math.floor(max / 2);
-        };
-        center();
-        wrapper.addEventListener('scroll', function() {
-            const max = wrapper.scrollHeight - wrapper.clientHeight;
-            if (wrapper.scrollTop < 200 || wrapper.scrollTop > max - 200) {
-                center();
-            }
+        const canvas = document.querySelector('.nbpoc-viewer-canvas');
+        const upBtn = document.querySelector('.nbpoc-wheel-up button');
+        const downBtn = document.querySelector('.nbpoc-wheel-down button');
+        if (!canvas || !upBtn || !downBtn) return setTimeout(setup, 200);
+        if (canvas.dataset.nbpocWheelBound) return;
+        canvas.dataset.nbpocWheelBound = '1';
+        let lastTime = 0;
+        canvas.addEventListener('wheel', function(e) {
+            const now = performance.now();
+            if (now - lastTime < 40) return;
+            lastTime = now;
+            if (e.deltaY > 0) downBtn.click();
+            else if (e.deltaY < 0) upBtn.click();
         }, { passive: true });
     }
     setup();
@@ -371,7 +339,7 @@ def build_viewer(state):
 """)
 
     viewer_panel = widgets.VBox(
-        [image_label, canvas, _scroll_reset_js],
+        [image_label, canvas, _wheel_js],
         layout=widgets.Layout(width="100%", height="100%"),
     )
     viewer_panel.add_class("nbpoc-viewer")
@@ -403,7 +371,8 @@ def build_viewer(state):
         "go_to_slice": _go_to_slice,
         "_wheel_box": _wheel_box,
         "_wheel_img": _wheel_img,
-        "_wheel_canvas": _wheel_canvas,
-        "_scroll_evt": _scroll_evt,
+        "_wheel_up_btn": _wheel_up_btn,
+        "_wheel_down_btn": _wheel_down_btn,
+        "_wheel_js": _wheel_js,
         "_key_event": _key_event,
     }
