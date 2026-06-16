@@ -119,6 +119,7 @@ def build_seg_viewer(state, viewer):
     )
     status_html = widgets.HTML(value="")
     mask_list_box = widgets.VBox([], layout=widgets.Layout(padding="4px 0"))
+    legend_box = widgets.HTML(value="")
 
     alpha_slider = widgets.FloatSlider(
         value=0.4, min=0.1, max=0.9, step=0.05,
@@ -188,6 +189,46 @@ def build_seg_viewer(state, viewer):
             arr = np.rot90(arr, _rotation[0])
         return arr
 
+    def _update_legend():
+        """Render a color/label legend for every segment currently enabled."""
+        items = []
+        seen = set()
+        for entry in _masks:
+            if not entry["checkbox"].value or entry["parsed"] is None:
+                continue
+            segments = entry["parsed"]["segments"]
+            seg_cbs = entry["segment_checkboxes"]
+            for num in sorted(segments.keys()):
+                cb = seg_cbs.get(num)
+                if cb is not None and not cb.value:
+                    continue
+                info = segments[num]
+                label = info["label"]
+                if label in seen:
+                    continue
+                seen.add(label)
+                r, g, b = info["color"]
+                items.append(
+                    "<span style='display:inline-flex;align-items:center;"
+                    "margin-right:14px;font-size:12px;color:#495057;'>"
+                    f"<span style='display:inline-block;width:12px;height:12px;"
+                    f"background:rgb({r},{g},{b});border-radius:2px;"
+                    "border:1px solid rgba(0,0,0,0.15);margin-right:6px;'></span>"
+                    f"{label}</span>"
+                )
+        if items:
+            legend_box.value = (
+                "<div style='padding:6px 10px;background:#f8f9fa;"
+                "border-radius:4px;margin:4px 0 8px;'>"
+                "<span style='color:#6c757d;font-size:11px;"
+                "text-transform:uppercase;letter-spacing:0.04em;margin-right:10px;'>"
+                "Legend</span>"
+                + "".join(items)
+                + "</div>"
+            )
+        else:
+            legend_box.value = ""
+
     def _active_layers():
         """Return list of (by_sop, segments, segments_enabled) for enabled masks."""
         layers = []
@@ -213,6 +254,7 @@ def build_seg_viewer(state, viewer):
             return
         layers = _active_layers()
         alpha = float(alpha_slider.value)
+        _update_legend()
 
         if not layers:
             state.series_png_cache = list(_originals)
@@ -267,6 +309,7 @@ def build_seg_viewer(state, viewer):
             return
         state.series_png_cache = list(_originals)
         _refresh_viewer_image()
+        _update_legend()
 
     # --- mask discovery + UI build -----------------------------------------
 
@@ -597,7 +640,7 @@ def build_seg_viewer(state, viewer):
     _discover_masks()
 
     results_section = widgets.VBox(
-        [header, status_html, mask_list_box],
+        [header, status_html, mask_list_box, legend_box],
         layout=widgets.Layout(width="100%", padding="0"),
     )
     display_section = widgets.VBox(
