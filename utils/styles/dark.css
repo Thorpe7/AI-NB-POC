@@ -373,6 +373,28 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     background-color: transparent !important;
 }
 
+/* Transparent native-scroll overlay used to capture the mouse wheel.
+   Stacks above the image (z:0) and below the corner overlays (z:5) /
+   slider (z:6). Its hidden scrollbar fires the browser's native scroll
+   handler, which dispatches a 'scroll' DOM event reliably even when
+   ipyevents 'wheel' is being eaten by passive-listener semantics. */
+.nbpoc-viewer-scroll-capture {
+    position: absolute !important;
+    inset: 0 !important;
+    overflow-y: scroll !important;
+    overflow-x: hidden !important;
+    z-index: 3 !important;
+    background: transparent !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.nbpoc-viewer-scroll-capture::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
 .nbpoc-viewer-overlay {
     position: absolute;
     color: var(--text);

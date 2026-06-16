@@ -282,6 +282,19 @@ def build_viewer(state):
     _wheel_img.on_dom_event(_on_wheel)
     _key_event.on_dom_event(_on_key)
 
+    # Native-scroll wheel capture. ipyevents 'wheel' is unreliable under
+    # Voila / certain browsers (registers as passive, events are dropped).
+    # The results section works because it uses native browser scrolling —
+    # mirror that here: an overlay div with overflow-y:scroll catches the
+    # wheel as a native scroll, ipyevents 'scroll' fires reliably, and a JS
+    # shim resets scrollTop near boundaries so the user can scroll forever.
+    _scroll_spacer = widgets.HTML(value="<div style='height:200vh;'></div>")
+    scroll_capture = widgets.Box(
+        [_scroll_spacer],
+        layout=widgets.Layout(),
+    )
+    scroll_capture.add_class("nbpoc-viewer-scroll-capture")
+
     canvas = widgets.Box(
         [
             image_container,
@@ -290,24 +303,75 @@ def build_viewer(state):
             overlay_bl,
             overlay_br,
             legend_overlay,
+            scroll_capture,
             series_nav,
         ],
         layout=widgets.Layout(width="100%", flex="1"),
     )
     canvas.add_class("nbpoc-viewer-canvas")
 
-    # Canvas-level wheel fallback. The image_container/image_widget bindings
-    # above are unreliable in some browsers when the <img> is overlaid by
-    # absolutely-positioned siblings. Binding on the canvas catches the
-    # bubbled event regardless of which child was the cursor target.
     _wheel_canvas = Event(
         source=canvas,
         watched_events=["wheel"],
     )
     _wheel_canvas.on_dom_event(_on_wheel)
 
+    _last_scroll_top = [None]
+
+    def _on_scroll(event):
+        top = event.get("scrollTop", 0)
+        if _last_scroll_top[0] is None:
+            _last_scroll_top[0] = top
+            return
+        delta = top - _last_scroll_top[0]
+        # Filter the JS-side boundary reset (huge jumps) and noise.
+        if abs(delta) > 500:
+            _last_scroll_top[0] = top
+            return
+        if abs(delta) < 6:
+            return
+        if delta > 0:
+            _go_to_slice(state.series_index + 1)
+        else:
+            _go_to_slice(state.series_index - 1)
+        _last_scroll_top[0] = top
+
+    _scroll_evt = Event(
+        source=scroll_capture,
+        watched_events=["scroll"],
+        wait=10,
+    )
+    _scroll_evt.on_dom_event(_on_scroll)
+
+    # One-shot JS that centers scrollTop and re-centers when nearing the
+    # boundary so wheel scroll never hits the end of the spacer.
+    _scroll_reset_js = widgets.HTML(value="""
+<script>
+(function() {
+    function setup() {
+        const wrapper = document.querySelector('.nbpoc-viewer-scroll-capture');
+        if (!wrapper) return setTimeout(setup, 200);
+        if (wrapper.dataset.nbpocScrollBound) return;
+        wrapper.dataset.nbpocScrollBound = '1';
+        const center = () => {
+            const max = wrapper.scrollHeight - wrapper.clientHeight;
+            wrapper.scrollTop = Math.floor(max / 2);
+        };
+        center();
+        wrapper.addEventListener('scroll', function() {
+            const max = wrapper.scrollHeight - wrapper.clientHeight;
+            if (wrapper.scrollTop < 200 || wrapper.scrollTop > max - 200) {
+                center();
+            }
+        }, { passive: true });
+    }
+    setup();
+})();
+</script>
+""")
+
     viewer_panel = widgets.VBox(
-        [image_label, canvas],
+        [image_label, canvas, _scroll_reset_js],
         layout=widgets.Layout(width="100%", height="100%"),
     )
     viewer_panel.add_class("nbpoc-viewer")
@@ -340,5 +404,6 @@ def build_viewer(state):
         "_wheel_box": _wheel_box,
         "_wheel_img": _wheel_img,
         "_wheel_canvas": _wheel_canvas,
+        "_scroll_evt": _scroll_evt,
         "_key_event": _key_event,
     }
