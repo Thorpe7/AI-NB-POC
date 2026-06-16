@@ -450,10 +450,12 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
 
 /* Vertical slice scrubber pinned tight to the right edge — minimal chrome
    so it never overlaps the medical image. Up/down buttons are hidden;
-   the mouse wheel and the slider thumb are the navigation surface. */
+   the mouse wheel and the slider thumb are the navigation surface.
+   overflow:hidden on every level suppresses the inner scrollbar that the
+   slider's own DOM was growing when we squeezed the track. */
 .nbpoc-viewer-slider {
     position: absolute;
-    right: 2px;
+    right: 4px;
     top: 50%;
     transform: translateY(-50%);
     z-index: 6;
@@ -468,6 +470,7 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     border-radius: 0;
     box-shadow: none;
     backdrop-filter: none;
+    overflow: hidden;
 }
 
 .nbpoc-viewer-slider > .widget-button {
@@ -475,23 +478,10 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
 }
 
 .nbpoc-viewer-slider .widget-vslider,
-.nbpoc-viewer-slider .widget-slider {
+.nbpoc-viewer-slider .widget-slider,
+.nbpoc-viewer-slider .slider-container {
     margin: 0;
-    width: 8px;
-    min-width: 8px;
-}
-
-.nbpoc-viewer-slider .widget-vslider .slider-container,
-.nbpoc-viewer-slider .widget-vslider .ui-slider {
-    width: 4px !important;
-    background-color: rgba(255, 255, 255, 0.18);
-}
-
-.nbpoc-viewer-slider .widget-vslider .ui-slider-handle {
-    width: 12px !important;
-    height: 12px !important;
-    border-radius: 50% !important;
-    margin-left: -4px !important;
+    overflow: hidden;
 }
 
 /* --- Right inference panel -------------------------------------------- */

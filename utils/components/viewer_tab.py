@@ -295,6 +295,17 @@ def build_viewer(state):
     )
     canvas.add_class("nbpoc-viewer-canvas")
 
+    # Canvas-level wheel fallback. The image_container/image_widget bindings
+    # above are unreliable in some browsers when the <img> is overlaid by
+    # absolutely-positioned siblings. Binding on the canvas catches the
+    # bubbled event regardless of which child was the cursor target.
+    _wheel_canvas = Event(
+        source=canvas,
+        watched_events=["wheel"],
+        prevent_default_action=True,
+    )
+    _wheel_canvas.on_dom_event(_on_wheel)
+
     viewer_panel = widgets.VBox(
         [image_label, canvas],
         layout=widgets.Layout(width="100%", height="100%"),
@@ -328,5 +339,6 @@ def build_viewer(state):
         "go_to_slice": _go_to_slice,
         "_wheel_box": _wheel_box,
         "_wheel_img": _wheel_img,
+        "_wheel_canvas": _wheel_canvas,
         "_key_event": _key_event,
     }
