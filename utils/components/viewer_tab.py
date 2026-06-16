@@ -65,7 +65,6 @@ def build_viewer(state):
     """
 
     image_placeholder = widgets.HTML(value=_PLACEHOLDER_HTML)
-    image_placeholder.add_class("nbpoc-viewer-placeholder")
     image_widget = widgets.Image(
         format="png",
         layout=widgets.Layout(
@@ -75,8 +74,10 @@ def build_viewer(state):
     )
     # Wrapping the Image in a Box gives wheel/key events a reliable DOM target.
     # Events attached to <img> are inconsistent across JupyterLab versions.
+    # Placeholder lives inside the container so its flex centering does the
+    # work — no absolute overlay (which broke ipyevents wheel binding).
     image_container = widgets.Box(
-        [image_widget],
+        [image_widget, image_placeholder],
         layout=widgets.Layout(
             display="flex",
             justify_content="center",
@@ -282,7 +283,6 @@ def build_viewer(state):
 
     canvas = widgets.Box(
         [
-            image_placeholder,
             image_container,
             overlay_tl,
             overlay_tr,

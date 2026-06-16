@@ -64,13 +64,13 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     box-sizing: border-box;
 }
 
-.nbpoc-viewer, .nbpoc-viewer * {
+.nbpoc-shell, .nbpoc-shell * {
     scrollbar-width: none;
     -ms-overflow-style: none;
 }
 
-.nbpoc-viewer::-webkit-scrollbar,
-.nbpoc-viewer *::-webkit-scrollbar {
+.nbpoc-shell::-webkit-scrollbar,
+.nbpoc-shell *::-webkit-scrollbar {
     display: none;
 }
 
@@ -360,16 +360,6 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
     width: 100% !important;
     height: 100% !important;
     background-color: transparent !important;
-}
-
-.nbpoc-viewer-placeholder {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    z-index: 1;
 }
 
 .nbpoc-viewer-canvas .widget-image img {
