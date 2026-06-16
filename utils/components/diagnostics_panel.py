@@ -27,15 +27,18 @@ _TOP_STAGE_ORDER = ("preprocess", "model_inference", "postprocess", "total")
 
 def _muted_card(msg):
     return (
-        f"<div style='color:#6c757d;background:#f8f9fa;padding:8px 10px;"
-        f"border-left:3px solid #adb5bd;border-radius:4px;font-size:12px;'>{msg}</div>"
+        f"<div style='color:var(--text-muted);background:var(--bg-panel-alt);"
+        f"padding:8px 10px;border-left:3px solid var(--border-strong);"
+        f"border-radius:4px;font-size:11.5px;'>{msg}</div>"
     )
 
 
 def _error_card(msg):
     return (
-        f"<div style='color:#d32f2f;background:#fff3f3;padding:8px 10px;"
-        f"border-left:3px solid #d32f2f;border-radius:4px;font-size:12px;'>{msg}</div>"
+        f"<div style='color:var(--severity-severe-fg);"
+        f"background:rgba(211,47,47,0.10);padding:8px 10px;"
+        f"border-left:3px solid var(--severity-severe-fg);"
+        f"border-radius:4px;font-size:11.5px;'>{msg}</div>"
     )
 
 
@@ -49,7 +52,7 @@ def _format_ms(value_ms):
     return f"{ms:.0f} ms"
 
 
-def _stage_bar(label, value_ms, max_ms, accent="#1976d2"):
+def _stage_bar(label, value_ms, max_ms, accent="var(--accent)"):
     width_pct = 0
     if max_ms > 0:
         try:
@@ -58,13 +61,13 @@ def _stage_bar(label, value_ms, max_ms, accent="#1976d2"):
             width_pct = 0
     return (
         f"<div style='display:flex;align-items:center;gap:10px;"
-        f"padding:3px 0;font-size:12px;'>"
-        f"<div style='flex:0 0 150px;color:#495057;'>{label}</div>"
-        f"<div style='flex:1;background:#eef1f4;border-radius:3px;height:10px;"
-        f"position:relative;overflow:hidden;'>"
+        f"padding:3px 0;font-size:11.5px;'>"
+        f"<div style='flex:0 0 130px;color:var(--text-muted);'>{label}</div>"
+        f"<div style='flex:1;background:var(--bg-input);border-radius:3px;"
+        f"height:8px;position:relative;overflow:hidden;'>"
         f"<div style='width:{width_pct:.1f}%;background:{accent};"
         f"height:100%;border-radius:3px;'></div></div>"
-        f"<div style='flex:0 0 80px;text-align:right;color:#6c757d;"
+        f"<div style='flex:0 0 70px;text-align:right;color:var(--text-dim);"
         f"font-family:monospace;'>{_format_ms(value_ms)}</div></div>"
     )
 
@@ -84,12 +87,12 @@ def _render_known_schema(data):
     )
 
     header = (
-        f"<div style='font-size:11px;color:#6c757d;padding:0 0 6px;'>"
-        f"<b>{model}</b> &middot; v{version}</div>"
+        f"<div style='font-size:10.5px;color:var(--text-muted);padding:0 0 6px;'>"
+        f"<b style='color:var(--text);'>{model}</b> &middot; v{version}</div>"
     )
     rows = []
     for key, val in top_values:
-        accent = "#9e9e9e" if key == "total" else "#1976d2"
+        accent = "var(--text-dim)" if key == "total" else "var(--accent)"
         basis = max(bar_basis, val) if key == "total" else bar_basis
         rows.append(_stage_bar(key, val, basis, accent=accent))
     top_html = widgets.HTML(value=header + "".join(rows))
@@ -107,8 +110,8 @@ def _render_known_schema(data):
     )
     breakdown_html = widgets.HTML(
         value=(
-            "<div style='font-size:11px;color:#6c757d;"
-            "padding:8px 0 4px;border-top:1px solid #f0f0f0;margin-top:6px;'>"
+            "<div style='font-size:10.5px;color:var(--text-muted);"
+            "padding:8px 0 4px;border-top:1px solid var(--border);margin-top:6px;'>"
             "Preprocess breakdown</div>"
             + breakdown_rows
         ),
@@ -118,7 +121,7 @@ def _render_known_schema(data):
     toggle = widgets.Button(
         description="Show preprocess breakdown",
         icon="chevron-right",
-        layout=widgets.Layout(width="240px", height="26px"),
+        layout=widgets.Layout(width="220px", height="24px"),
     )
 
     state = {"expanded": False}
@@ -148,9 +151,10 @@ def _render_unknown_schema(data, schema_version):
     )
     pre = widgets.HTML(
         value=(
-            f"<pre style='font-size:11px;background:#f8f9fa;padding:8px 10px;"
-            f"border-radius:4px;border:1px solid #e9ecef;overflow:auto;"
-            f"max-height:240px;white-space:pre-wrap;'>{raw}</pre>"
+            f"<pre style='font-size:10.5px;background:var(--bg-input);"
+            f"color:var(--text);padding:8px 10px;border-radius:4px;"
+            f"border:1px solid var(--border);overflow:auto;max-height:240px;"
+            f"white-space:pre-wrap;'>{raw}</pre>"
         )
     )
     return widgets.VBox([widgets.HTML(value=warning), pre])
@@ -175,7 +179,7 @@ def _render_diagnostics_file(path: Path):
 
     title = widgets.HTML(
         value=(
-            f"<div style='font-size:12px;font-weight:600;color:#495057;"
+            f"<div style='font-size:11.5px;font-weight:600;color:var(--text);"
             f"padding:6px 0 4px;'>{path.name}</div>"
         )
     )
@@ -183,7 +187,7 @@ def _render_diagnostics_file(path: Path):
         [title, body],
         layout=widgets.Layout(
             padding="6px 10px",
-            border="1px solid #e9ecef",
+            border="1px solid var(--border)",
             border_radius="4px",
             margin="0 0 6px 0",
         ),
@@ -198,19 +202,19 @@ def build_diagnostics_panel(state):
     """
 
     header_label = widgets.HTML(
-        "<div style='font-size:13px;font-weight:700;color:#495057;'>"
-        "Pipeline diagnostics</div>",
+        "<div class='nbpoc-section-label' style='padding-top:12px;'>"
+        "PIPELINE DIAGNOSTICS</div>",
         layout=widgets.Layout(flex="1"),
     )
     toggle_btn = widgets.Button(
         icon="chevron-down",
         tooltip="Collapse / expand",
-        layout=widgets.Layout(width="30px", height="24px"),
+        layout=widgets.Layout(width="28px", height="22px"),
     )
     refresh_btn = widgets.Button(
         icon="refresh",
         tooltip="Rescan diagnostics files",
-        layout=widgets.Layout(width="30px", height="24px"),
+        layout=widgets.Layout(width="28px", height="22px"),
     )
     header = widgets.HBox(
         [header_label, refresh_btn, toggle_btn],
@@ -222,9 +226,8 @@ def build_diagnostics_panel(state):
         [header, body_box],
         layout=widgets.Layout(
             display="none",
-            padding="12px 16px",
-            border_top="1px solid #e9ecef",
-            margin="12px 0 0 0",
+            padding="6px 0 0 0",
+            margin="0",
         ),
     )
 
