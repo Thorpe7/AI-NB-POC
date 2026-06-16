@@ -9,9 +9,8 @@ from utils.dicom_utils import extract_metadata
 
 _PLACEHOLDER_HTML = (
     "<div style='display:flex;align-items:center;justify-content:center;"
-    "width:100%;min-height:350px;background:transparent;"
-    "color:var(--text-muted);font-size:13px;"
-    "flex-direction:column;gap:8px;'>"
+    "flex-direction:column;gap:8px;"
+    "color:var(--text-muted);font-size:13px;'>"
     "<span style='font-size:36px;opacity:0.4;'>&#128203;</span>"
     "<span>Select a series from the left sidebar</span></div>"
 )
@@ -66,6 +65,7 @@ def build_viewer(state):
     """
 
     image_placeholder = widgets.HTML(value=_PLACEHOLDER_HTML)
+    image_placeholder.add_class("nbpoc-viewer-placeholder")
     image_widget = widgets.Image(
         format="png",
         layout=widgets.Layout(

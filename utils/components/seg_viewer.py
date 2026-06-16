@@ -592,11 +592,15 @@ def build_seg_viewer(state, viewer):
         _reset_caches()
         _discover_masks()
         _restore_originals()
+        if legend_target is not None:
+            legend_target.value = ""
 
     def _on_series_datasets_change(_change):
         # series_png_cache is repopulated by file_browser when a new series
         # loads; capture a fresh snapshot before any compositing happens.
         _reset_caches()
+        if legend_target is not None:
+            legend_target.value = ""
 
     def _on_refresh(_btn):
         # Preserve the active overlay set across a rescan by carrying enabled
