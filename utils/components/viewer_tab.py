@@ -247,16 +247,17 @@ def build_viewer(state):
     # Scroll-wheel + arrow-key nav via ipyevents. Attach to BOTH the Box and
     # the Image — the Box catches bubbled events in JupyterLab, but Voila and
     # some browsers route the wheel directly to the <img> and the Box never
-    # sees it. Two sources, same handler.
+    # sees it. prevent_default_action is intentionally OMITTED: setting it in
+    # ipyevents 2.x against modern browsers can register the wheel listener
+    # as passive and silently drop the event. overflow:hidden on every parent
+    # already kills the default scroll, so we don't need preventDefault.
     _wheel_box = Event(
         source=image_container,
         watched_events=["wheel"],
-        prevent_default_action=True,
     )
     _wheel_img = Event(
         source=image_widget,
         watched_events=["wheel"],
-        prevent_default_action=True,
     )
     _key_event = Event(
         source=image_container,
@@ -302,7 +303,6 @@ def build_viewer(state):
     _wheel_canvas = Event(
         source=canvas,
         watched_events=["wheel"],
-        prevent_default_action=True,
     )
     _wheel_canvas.on_dom_event(_on_wheel)
 

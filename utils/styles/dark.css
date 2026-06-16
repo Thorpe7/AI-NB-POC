@@ -455,7 +455,7 @@ body, .jp-Notebook, .jp-MainAreaWidget, #site, #main {
    slider's own DOM was growing when we squeezed the track. */
 .nbpoc-viewer-slider {
     position: absolute;
-    right: 4px;
+    right: 0;
     top: 50%;
     transform: translateY(-50%);
     z-index: 6;
