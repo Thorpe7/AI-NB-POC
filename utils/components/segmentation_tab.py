@@ -260,10 +260,45 @@ def build_segmentation(state):
 
     placeholder_card = widgets.HTML(value=_PLACEHOLDER)
     response_stack = widgets.VBox(children=[placeholder_card])
-    # job_id -> card widget for in-flight jobs. Threads update card.value in
-    # the finally block to swap the spinner for the result HTML in place.
-    inflight_cards: dict[int, widgets.HTML] = {}
+    # job_id -> container widget (VBox with close button + HTML body) for
+    # in-flight jobs. Threads update the inner HTML's value in finally to
+    # swap the spinner for the result, and reveal the close button.
+    inflight_cards: dict[int, widgets.VBox] = {}
     next_job_id = [0]
+
+    def _make_card_container(html_content: str, show_close: bool):
+        html_widget = widgets.HTML(value=html_content)
+        close_btn = widgets.Button(
+            description="×",
+            tooltip="Close",
+            layout=widgets.Layout(
+                width="24px",
+                height="22px",
+                min_width="24px",
+                display="" if show_close else "none",
+            ),
+        )
+        button_row = widgets.HBox(
+            [close_btn],
+            layout=widgets.Layout(
+                justify_content="flex-end", padding="0", margin="0"
+            ),
+        )
+        container = widgets.VBox(
+            [button_row, html_widget],
+            layout=widgets.Layout(margin="0 0 6px 0"),
+        )
+
+        def _on_close(_btn):
+            new_children = tuple(
+                c for c in response_stack.children if c is not container
+            )
+            response_stack.children = (
+                new_children if new_children else (placeholder_card,)
+            )
+
+        close_btn.on_click(_on_close)
+        return container, html_widget, close_btn
 
     def _refresh_series_label(*_):
         n = len(state.series_datasets)
@@ -438,7 +473,7 @@ def build_segmentation(state):
             new_inflight.remove(model_name)
         state.inflight_models = new_inflight
 
-    def _run_in_thread(payload, model_name, job_id, card, started_at):
+    def _run_in_thread(payload, model_name, job_id, card_html, close_btn, started_at):
         t0 = time.time()
         result_html = None
         try:
@@ -497,17 +532,19 @@ def build_segmentation(state):
                 f"Unexpected error: {e}", model_name=model_name, started_at=started_at
             )
         finally:
-            card.value = result_html or _error_card(
+            card_html.value = result_html or _error_card(
                 "Unknown error.", model_name=model_name, started_at=started_at
             )
+            close_btn.layout.display = ""
             _remove_inflight(job_id, model_name)
 
     def _on_run(_btn):
         payload, err = _build_payload()
         if err:
             # Surface validation errors above the existing cards without
-            # consuming a job slot — render directly into a transient card.
-            transient = widgets.HTML(value=_error_card(err))
+            # consuming a job slot — close button visible immediately since
+            # there's no run to wait for.
+            transient, _, _ = _make_card_container(_error_card(err), show_close=True)
             existing = [c for c in response_stack.children if c is not placeholder_card]
             response_stack.children = (transient, *existing)
             return
@@ -517,17 +554,19 @@ def build_segmentation(state):
         job_id = next_job_id[0]
         started_at = datetime.now().strftime("%H:%M:%S")
 
-        card = widgets.HTML(value=_spinner_card(model_name, started_at))
-        inflight_cards[job_id] = card
+        container, card_html, close_btn = _make_card_container(
+            _spinner_card(model_name, started_at), show_close=False
+        )
+        inflight_cards[job_id] = container
         # Newest card on top; drop the placeholder once we have real content.
         existing = [c for c in response_stack.children if c is not placeholder_card]
-        response_stack.children = (card, *existing)
+        response_stack.children = (container, *existing)
 
         state.inflight_models = state.inflight_models + [model_name]
 
         threading.Thread(
             target=_run_in_thread,
-            args=(payload, model_name, job_id, card, started_at),
+            args=(payload, model_name, job_id, card_html, close_btn, started_at),
             daemon=True,
         ).start()
 

@@ -220,10 +220,10 @@ def build_diagnostics_panel(state):
         [header_label, refresh_btn, toggle_btn],
         layout=widgets.Layout(align_items="center", padding="0 0 6px"),
     )
-    body_box = widgets.VBox([], layout=widgets.Layout(padding="4px 0"))
+    tabs = widgets.Tab(layout=widgets.Layout(padding="4px 0"))
 
     container = widgets.VBox(
-        [header, body_box],
+        [header, tabs],
         layout=widgets.Layout(
             display="none",
             padding="6px 0 0 0",
@@ -235,7 +235,7 @@ def build_diagnostics_panel(state):
 
     def _on_toggle(_btn):
         state_flags["expanded"] = not state_flags["expanded"]
-        body_box.layout.display = "" if state_flags["expanded"] else "none"
+        tabs.layout.display = "" if state_flags["expanded"] else "none"
         toggle_btn.icon = "chevron-down" if state_flags["expanded"] else "chevron-right"
 
     toggle_btn.on_click(_on_toggle)
@@ -245,11 +245,49 @@ def build_diagnostics_panel(state):
             return None
         return Path(state.series_dir_path).parent / _MASKS_SUBDIR
 
+    def _close_tab(content_widget):
+        children = list(tabs.children)
+        if content_widget not in children:
+            return
+        idx = children.index(content_widget)
+        titles = [tabs.get_title(i) for i in range(len(children))]
+        children.pop(idx)
+        titles.pop(idx)
+        tabs.children = tuple(children)
+        for i, t in enumerate(titles):
+            tabs.set_title(i, t)
+        if not children:
+            container.layout.display = "none"
+
+    def _build_tab(path: Path):
+        close_btn = widgets.Button(
+            description="× Close",
+            tooltip="Close this tab",
+            layout=widgets.Layout(width="80px", height="22px"),
+        )
+        body = _render_diagnostics_file(path)
+        tab_content = widgets.VBox(
+            [
+                widgets.HBox(
+                    [close_btn],
+                    layout=widgets.Layout(justify_content="flex-end", padding="0"),
+                ),
+                body,
+            ],
+            layout=widgets.Layout(padding="4px 0"),
+        )
+        close_btn.on_click(lambda _b: _close_tab(tab_content))
+        return tab_content
+
+    def _tab_title_for(path: Path) -> str:
+        stem = path.stem
+        return stem.removesuffix("_diagnostics") or stem
+
     def _discover():
         masks_dir = _masks_dir_for_series()
         if masks_dir is None or not masks_dir.is_dir():
             container.layout.display = "none"
-            body_box.children = []
+            tabs.children = ()
             return
 
         files = sorted(
@@ -257,10 +295,13 @@ def build_diagnostics_panel(state):
         )
         if not files:
             container.layout.display = "none"
-            body_box.children = []
+            tabs.children = ()
             return
 
-        body_box.children = [_render_diagnostics_file(p) for p in files]
+        tab_widgets = [_build_tab(p) for p in files]
+        tabs.children = tuple(tab_widgets)
+        for i, p in enumerate(files):
+            tabs.set_title(i, _tab_title_for(p))
         container.layout.display = ""
 
     refresh_btn.on_click(lambda _b: _discover())
