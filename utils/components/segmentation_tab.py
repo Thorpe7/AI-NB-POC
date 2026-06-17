@@ -458,6 +458,9 @@ def build_segmentation(state):
                     payload[f"{key}_dir"] = translate_path(local_path)
                 except ValueError as e:
                     return None, str(e)
+            tag = brainseg_mask_tag_input.value.strip()
+            if tag:
+                payload["mask_tag"] = tag
             return payload, None
 
         payload = {"dicom_dir": dicom_dir, "fast": fast_checkbox.value}
