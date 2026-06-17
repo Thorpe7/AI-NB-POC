@@ -34,13 +34,19 @@ _DISCLAIMER_HTML = (
     "</div>"
 )
 
-def _status_html(status: str) -> str:
-    is_running = status == "running"
-    cls = "nbpoc-status running" if is_running else "nbpoc-status"
-    label = "Running" if is_running else "Ready"
+def _status_html(inflight: list) -> str:
+    if not inflight:
+        return (
+            "<div class='nbpoc-status-row'>"
+            "<span class='nbpoc-status'><span class='dot'></span> Ready</span>"
+            "<button class='nbpoc-stop-btn' type='button'>Stop</button>"
+            "</div>"
+        )
+    names = ", ".join(inflight)
     return (
         "<div class='nbpoc-status-row'>"
-        f"<span class='{cls}'><span class='dot'></span> {label}</span>"
+        "<span class='nbpoc-status running'><span class='dot'></span> "
+        f"{len(inflight)} running: {names}</span>"
         "<button class='nbpoc-stop-btn' type='button'>Stop</button>"
         "</div>"
     )
@@ -61,12 +67,12 @@ def build_inference_panel(state, viewer) -> widgets.VBox:
 
     header = widgets.HTML(value=_HEADER_HTML)
     disclaimer = widgets.HTML(value=_DISCLAIMER_HTML)
-    status_row = widgets.HTML(value=_status_html(state.inference_status))
+    status_row = widgets.HTML(value=_status_html(state.inflight_models))
 
     def _on_status_change(change):
         status_row.value = _status_html(change["new"])
 
-    state.observe(_on_status_change, names="inference_status")
+    state.observe(_on_status_change, names="inflight_models")
 
     segmentation_form = build_segmentation(state)
     segmentation_form.add_class("nbpoc-inference-form")

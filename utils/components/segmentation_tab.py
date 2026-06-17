@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import ipywidgets as widgets
@@ -34,13 +35,6 @@ _BRAINSEG_MODALITY_LABELS = {
     "flair": "FLAIR",
 }
 
-_SPINNER_HTML = (
-    '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;">'
-    '<span class="nbpoc-spinner"></span>'
-    '<span style="font-size:12px;color:var(--text-muted);">'
-    'Running inference&hellip;</span></div>'
-)
-
 _PLACEHOLDER = (
     "<div style='color:var(--text-muted);padding:16px 4px;text-align:center;"
     "font-size:12px;'>Select a DICOM series and click "
@@ -48,14 +42,50 @@ _PLACEHOLDER = (
 )
 
 
-def _error_card(msg: str) -> str:
+def _card_header(model_name: str, started_at: str, suffix: str = "") -> str:
+    tail = f" &nbsp;&middot;&nbsp; {suffix}" if suffix else ""
     return (
-        f"<div class='nbpoc-card severe' style='font-size:12px;color:var(--severity-severe-fg);'>"
-        f"{msg}</div>"
+        "<div style='font-weight:700;color:var(--text);margin-bottom:6px;"
+        "font-family:inherit;display:flex;justify-content:space-between;"
+        "align-items:center;gap:8px;'>"
+        f"<span>{model_name}</span>"
+        f"<span style='font-weight:500;color:var(--text-dim);font-size:10.5px;"
+        f"font-family:inherit;'>{started_at}{tail}</span>"
+        "</div>"
     )
 
 
-def _response_card(result: dict, local_seg_path: str | None) -> str:
+def _spinner_card(model_name: str, started_at: str) -> str:
+    return (
+        "<div class='nbpoc-card normal' "
+        "style='font-size:11px;font-family:monospace;line-height:1.55;'>"
+        + _card_header(model_name, started_at, "running") +
+        '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        '<span class="nbpoc-spinner"></span>'
+        '<span style="font-size:12px;color:var(--text-muted);'
+        'font-family:inherit;">Running inference&hellip;</span></div>'
+        "</div>"
+    )
+
+
+def _error_card(msg: str, model_name: str = "", started_at: str = "") -> str:
+    if not model_name:
+        return (
+            f"<div class='nbpoc-card severe' style='font-size:12px;color:var(--severity-severe-fg);'>"
+            f"{msg}</div>"
+        )
+    return (
+        "<div class='nbpoc-card severe' "
+        "style='font-size:12px;color:var(--severity-severe-fg);'>"
+        + _card_header(model_name, started_at, "failed") +
+        f"<div style='font-family:monospace;'>{msg}</div>"
+        "</div>"
+    )
+
+
+def _response_card(
+    result: dict, local_seg_path: str | None, model_name: str, started_at: str
+) -> str:
     # Show whichever fields the predictor echoed back; TotalSegmentator and
     # NSCLC return different keys.
     rows = []
@@ -74,10 +104,8 @@ def _response_card(result: dict, local_seg_path: str | None) -> str:
     return (
         "<div class='nbpoc-card normal' "
         "style='font-size:11px;font-family:monospace;line-height:1.55;'>"
-        "<div style='font-weight:700;color:var(--text);margin-bottom:6px;"
-        "font-family:inherit;'>"
-        "Inference Result</div>"
-        + "".join(rows) +
+        + _card_header(model_name, started_at, "done") +
+        "".join(rows) +
         "</div>"
     )
 
@@ -206,8 +234,19 @@ def build_segmentation(state):
             style={"description_width": "90px"},
         )
     brainseg_status = widgets.HTML(value="")
+    brainseg_mask_tag_input = widgets.Text(
+        value="",
+        placeholder="Optional: post_contrast_v2",
+        description="Mask tag:",
+        style={"description_width": "90px"},
+        layout=widgets.Layout(width="100%"),
+    )
     brainseg_block = widgets.VBox(
-        [brainseg_status, *(brainseg_dropdowns[k] for k in _BRAINSEG_MODALITIES)]
+        [
+            brainseg_status,
+            *(brainseg_dropdowns[k] for k in _BRAINSEG_MODALITIES),
+            brainseg_mask_tag_input,
+        ]
     )
     _brainseg_scans_cache: dict[str, dict] = {}
 
@@ -219,8 +258,12 @@ def build_segmentation(state):
     )
     run_button.add_class("nbpoc-analyze-wrap")
 
-    spinner = widgets.HTML(value="")
-    response_area = widgets.HTML(value=_PLACEHOLDER)
+    placeholder_card = widgets.HTML(value=_PLACEHOLDER)
+    response_stack = widgets.VBox(children=[placeholder_card])
+    # job_id -> card widget for in-flight jobs. Threads update card.value in
+    # the finally block to swap the spinner for the result HTML in place.
+    inflight_cards: dict[int, widgets.HTML] = {}
+    next_job_id = [0]
 
     def _refresh_series_label(*_):
         n = len(state.series_datasets)
@@ -326,11 +369,13 @@ def build_segmentation(state):
     _refresh_brainseg_scans()
 
     def _on_series_change(_change):
-        # Wipe the previous run's result card so it doesn't masquerade as
-        # the new series' result. If a job is in flight we leave it alone —
-        # the thread will write the actual outcome.
-        if state.inference_status != "running":
-            response_area.value = _PLACEHOLDER
+        # Wipe completed cards so they don't masquerade as the new series'
+        # result. In-flight cards stay — their threads will land the result
+        # in place — and series identification is the user's job once they
+        # have multiple completed cards in the stack.
+        inflight_widgets = set(id(c) for c in inflight_cards.values())
+        keep = [c for c in response_stack.children if id(c) in inflight_widgets]
+        response_stack.children = tuple(keep) if keep else (placeholder_card,)
 
     state.observe(_on_series_change, names="series_dir_path")
 
@@ -386,12 +431,14 @@ def build_segmentation(state):
             payload["roi_subset"] = roi
         return payload, None
 
-    # Single-flight guard. While a job is running, the run_button is disabled
-    # so a second click can't race in. _job_token bumps on each click so any
-    # stale thread that returns after a reset can detect that and bail.
-    _job_token = [0]
+    def _remove_inflight(job_id: int, model_name: str) -> None:
+        inflight_cards.pop(job_id, None)
+        new_inflight = list(state.inflight_models)
+        if model_name in new_inflight:
+            new_inflight.remove(model_name)
+        state.inflight_models = new_inflight
 
-    def _run_in_thread(payload, model_name, token):
+    def _run_in_thread(payload, model_name, job_id, card, started_at):
         t0 = time.time()
         result_html = None
         try:
@@ -406,7 +453,9 @@ def build_segmentation(state):
                 except ValueError as e:
                     result_html = _error_card(
                         f"Segmentation succeeded but seg_path could not be "
-                        f"translated: {e}"
+                        f"translated: {e}",
+                        model_name=model_name,
+                        started_at=started_at,
                     )
 
             if result_html is None:
@@ -417,11 +466,16 @@ def build_segmentation(state):
                     f"Predictor: {predictor_elapsed:.1f}s &nbsp;&middot;&nbsp; "
                     f"Refresh the results section to load the new mask.</div>"
                 )
-                result_html = _response_card(result, local_seg) + footer
+                result_html = (
+                    _response_card(result, local_seg, model_name, started_at)
+                    + footer
+                )
         except requests.Timeout:
             result_html = _error_card(
                 "Request timed out. KServe may be cold-starting "
-                "(can take several minutes on first request)."
+                "(can take several minutes on first request).",
+                model_name=model_name,
+                started_at=started_at,
             )
         except requests.HTTPError as e:
             body = ""
@@ -430,39 +484,50 @@ def build_segmentation(state):
             except Exception:
                 pass
             result_html = _error_card(
-                f"HTTP {e.response.status_code} from predictor: {body}"
+                f"HTTP {e.response.status_code} from predictor: {body}",
+                model_name=model_name,
+                started_at=started_at,
             )
         except requests.RequestException as e:
-            result_html = _error_card(f"Request failed: {e}")
+            result_html = _error_card(
+                f"Request failed: {e}", model_name=model_name, started_at=started_at
+            )
         except Exception as e:
-            result_html = _error_card(f"Unexpected error: {e}")
+            result_html = _error_card(
+                f"Unexpected error: {e}", model_name=model_name, started_at=started_at
+            )
         finally:
-            if token != _job_token[0]:
-                # A newer job was kicked off (shouldn't happen with the
-                # disable-while-running guard, but be safe). Discard.
-                return
-            response_area.value = result_html or _error_card("Unknown error.")
-            spinner.value = ""
-            state.inference_status = "ready"
-            run_button.disabled = not state.series_dir_path
+            card.value = result_html or _error_card(
+                "Unknown error.", model_name=model_name, started_at=started_at
+            )
+            _remove_inflight(job_id, model_name)
 
     def _on_run(_btn):
         payload, err = _build_payload()
         if err:
-            response_area.value = _error_card(err)
+            # Surface validation errors above the existing cards without
+            # consuming a job slot — render directly into a transient card.
+            transient = widgets.HTML(value=_error_card(err))
+            existing = [c for c in response_stack.children if c is not placeholder_card]
+            response_stack.children = (transient, *existing)
             return
 
         model_name = TASKS[task_dropdown.value]
-        _job_token[0] += 1
-        token = _job_token[0]
+        next_job_id[0] += 1
+        job_id = next_job_id[0]
+        started_at = datetime.now().strftime("%H:%M:%S")
 
-        run_button.disabled = True
-        spinner.value = _SPINNER_HTML
-        state.inference_status = "running"
+        card = widgets.HTML(value=_spinner_card(model_name, started_at))
+        inflight_cards[job_id] = card
+        # Newest card on top; drop the placeholder once we have real content.
+        existing = [c for c in response_stack.children if c is not placeholder_card]
+        response_stack.children = (card, *existing)
+
+        state.inflight_models = state.inflight_models + [model_name]
 
         threading.Thread(
             target=_run_in_thread,
-            args=(payload, model_name, token),
+            args=(payload, model_name, job_id, card, started_at),
             daemon=True,
         ).start()
 
@@ -478,8 +543,7 @@ def build_segmentation(state):
             mask_tag_input,
             brainseg_block,
             run_button,
-            spinner,
-            response_area,
+            response_stack,
         ],
         layout=widgets.Layout(width="100%", padding="0"),
     )

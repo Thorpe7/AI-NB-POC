@@ -21,5 +21,8 @@ class AppState(traitlets.HasTraits):
     series_dir_name = traitlets.Unicode(default_value="")
     series_dir_path = traitlets.Unicode(default_value="")
 
-    # Inference job state — "ready" or "running". One job at a time.
-    inference_status = traitlets.Unicode(default_value="ready")
+    # Model names of currently in-flight inference jobs. Multiple concurrent
+    # cross-model runs are supported (e.g. ["brainseg", "duneai-nsclc"]); the
+    # status row derives "N running" from len(...). Same-model concurrency is
+    # out of scope — callers don't enforce uniqueness here.
+    inflight_models = traitlets.List(default_value=[])
