@@ -1,14 +1,21 @@
-"""Auto-discovering pipeline-diagnostics panel for the loaded DICOM series.
+"""Mask-driven pipeline-diagnostics panel.
 
-Mirrors ``seg_viewer``'s discovery: on series load, scans
-``{state.series_dir_path}/../masks/*_diagnostics.json`` for sidecar timing
-files emitted by transformer pods (BrainSeg today, DuneAI later). The
-contract is generic across models — any JSON shaped as
+Tabs are driven by ``state.active_diagnostics``: a dict
+``{mask_path: diag_path}`` populated by ``seg_viewer`` as the user toggles
+each mask's Show button. Per-mask diagnostics files are written by the
+transformer pods with a stem that matches the SEG file (e.g.,
+``lesion_mask_seg_v1.dcm`` → ``lesion_mask_seg_v1_diagnostics.json``).
+
+Closing a tab via its × removes the entry from ``state.active_diagnostics``;
+``seg_viewer`` observes that mutation and turns the matching mask's Show
+toggle off — keeping the overlay and the diagnostics tab in lockstep.
+
+JSON contract — any object shaped as
 
     {model, version, schema_version, timings_ms, preprocess_breakdown?}
 
-renders into a collapsible "Pipeline diagnostics" panel. Unknown
-``schema_version`` values fall back to a raw-JSON dump.
+renders into a structured per-stage view. Unknown ``schema_version`` values
+fall back to a raw-JSON dump.
 """
 
 from __future__ import annotations
@@ -18,8 +25,6 @@ from pathlib import Path
 
 import ipywidgets as widgets
 
-_MASKS_SUBDIR = "masks"
-_DIAGNOSTICS_SUFFIX = "_diagnostics.json"
 _KNOWN_SCHEMA_VERSIONS = {1}
 
 _TOP_STAGE_ORDER = ("preprocess", "model_inference", "postprocess", "total")
@@ -124,15 +129,15 @@ def _render_known_schema(data):
         layout=widgets.Layout(width="220px", height="24px"),
     )
 
-    state = {"expanded": False}
+    inner_state = {"expanded": False}
 
     def _on_toggle(_btn):
-        state["expanded"] = not state["expanded"]
-        breakdown_html.layout.display = "" if state["expanded"] else "none"
-        toggle.icon = "chevron-down" if state["expanded"] else "chevron-right"
+        inner_state["expanded"] = not inner_state["expanded"]
+        breakdown_html.layout.display = "" if inner_state["expanded"] else "none"
+        toggle.icon = "chevron-down" if inner_state["expanded"] else "chevron-right"
         toggle.description = (
             "Hide preprocess breakdown"
-            if state["expanded"]
+            if inner_state["expanded"]
             else "Show preprocess breakdown"
         )
 
@@ -194,11 +199,23 @@ def _render_diagnostics_file(path: Path):
     )
 
 
-def build_diagnostics_panel(state):
-    """Build the collapsible Pipeline-diagnostics panel.
+def _tab_title_for(mask_path: str) -> str:
+    p = Path(mask_path)
+    stem = p.stem
+    parts = p.parts
+    try:
+        scans_idx = parts.index("SCANS")
+        scan_id = parts[scans_idx + 1]
+        return f"{scan_id} / {stem}"
+    except (ValueError, IndexError):
+        return stem
 
-    Returns a VBox that auto-hides when no sibling diagnostics JSON exists
-    for the currently loaded series.
+
+def build_diagnostics_panel(state):
+    """Build the mask-driven Pipeline-diagnostics panel.
+
+    Returns a VBox that auto-hides when no mask has surfaced a paired
+    diagnostics file via ``state.active_diagnostics``.
     """
 
     header_label = widgets.HTML(
@@ -211,19 +228,15 @@ def build_diagnostics_panel(state):
         tooltip="Collapse / expand",
         layout=widgets.Layout(width="28px", height="22px"),
     )
-    refresh_btn = widgets.Button(
-        icon="refresh",
-        tooltip="Rescan diagnostics files",
-        layout=widgets.Layout(width="28px", height="22px"),
-    )
     header = widgets.HBox(
-        [header_label, refresh_btn, toggle_btn],
+        [header_label, toggle_btn],
         layout=widgets.Layout(align_items="center", padding="0 0 6px"),
     )
-    body_box = widgets.VBox([], layout=widgets.Layout(padding="4px 0"))
+    tabs = widgets.Tab(layout=widgets.Layout(padding="4px 0"))
+    tabs.add_class("nbpoc-diagnostics-tabs")
 
     container = widgets.VBox(
-        [header, body_box],
+        [header, tabs],
         layout=widgets.Layout(
             display="none",
             padding="6px 0 0 0",
@@ -232,39 +245,85 @@ def build_diagnostics_panel(state):
     )
 
     state_flags = {"expanded": True}
+    # mask_path -> tab content widget. Keyed by mask path so we can
+    # update/remove based on state.active_diagnostics mutations without
+    # re-rendering tabs the user already has open.
+    open_tabs: dict[str, widgets.VBox] = {}
 
     def _on_toggle(_btn):
         state_flags["expanded"] = not state_flags["expanded"]
-        body_box.layout.display = "" if state_flags["expanded"] else "none"
+        tabs.layout.display = "" if state_flags["expanded"] else "none"
         toggle_btn.icon = "chevron-down" if state_flags["expanded"] else "chevron-right"
 
     toggle_btn.on_click(_on_toggle)
 
-    def _masks_dir_for_series():
-        if not state.series_dir_path:
-            return None
-        return Path(state.series_dir_path).parent / _MASKS_SUBDIR
-
-    def _discover():
-        masks_dir = _masks_dir_for_series()
-        if masks_dir is None or not masks_dir.is_dir():
-            container.layout.display = "none"
-            body_box.children = []
+    def _remove_from_state(mask_path: str):
+        """Drop ``mask_path`` from state.active_diagnostics — triggers seg_viewer
+        to turn the matching mask's Show toggle off via its observer."""
+        current = dict(state.active_diagnostics)
+        if mask_path not in current:
             return
+        del current[mask_path]
+        state.active_diagnostics = current
 
-        files = sorted(
-            p for p in masks_dir.glob(f"*{_DIAGNOSTICS_SUFFIX}") if p.is_file()
+    def _build_tab(mask_path: str, diag_path: str):
+        close_btn = widgets.Button(
+            description="× Close",
+            tooltip="Close this tab (and hide the matching mask)",
+            layout=widgets.Layout(width="80px", height="22px"),
         )
-        if not files:
-            container.layout.display = "none"
-            body_box.children = []
-            return
+        body = _render_diagnostics_file(Path(diag_path))
+        tab_content = widgets.VBox(
+            [
+                widgets.HBox(
+                    [close_btn],
+                    layout=widgets.Layout(justify_content="flex-end", padding="0"),
+                ),
+                body,
+            ],
+            layout=widgets.Layout(padding="4px 0"),
+        )
+        close_btn.on_click(lambda _b: _remove_from_state(mask_path))
+        return tab_content
 
-        body_box.children = [_render_diagnostics_file(p) for p in files]
-        container.layout.display = ""
+    def _sync_tabs(active: dict[str, str]):
+        """Make the tab set match ``active`` (mask_path -> diag_path)."""
+        # Remove tabs whose mask is no longer active.
+        to_remove = [mp for mp in open_tabs if mp not in active]
+        if to_remove:
+            remaining_children = [
+                w for mp, w in open_tabs.items() if mp not in to_remove
+            ]
+            remaining_titles = [
+                _tab_title_for(mp) for mp in open_tabs if mp not in to_remove
+            ]
+            for mp in to_remove:
+                del open_tabs[mp]
+            tabs.children = tuple(remaining_children)
+            for i, t in enumerate(remaining_titles):
+                tabs.set_title(i, t)
 
-    refresh_btn.on_click(lambda _b: _discover())
-    state.observe(lambda _c: _discover(), names="series_dir_path")
+        # Append tabs for newly-active masks.
+        new_masks = [mp for mp in active if mp not in open_tabs]
+        if new_masks:
+            existing_children = list(tabs.children)
+            existing_titles = [
+                tabs.get_title(i) for i in range(len(existing_children))
+            ]
+            new_widgets = [_build_tab(mp, active[mp]) for mp in new_masks]
+            new_titles = [_tab_title_for(mp) for mp in new_masks]
+            for mp, w in zip(new_masks, new_widgets):
+                open_tabs[mp] = w
+            tabs.children = tuple(existing_children + new_widgets)
+            for i, t in enumerate(existing_titles + new_titles):
+                tabs.set_title(i, t)
 
-    _discover()
+        container.layout.display = "" if open_tabs else "none"
+
+    def _on_active_diagnostics_change(change):
+        _sync_tabs(change["new"] or {})
+
+    state.observe(_on_active_diagnostics_change, names="active_diagnostics")
+
+    _sync_tabs(state.active_diagnostics or {})
     return container

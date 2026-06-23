@@ -3,11 +3,15 @@
 import os
 
 # Inference endpoint template. {model} is substituted with the selected model
-# name, e.g. duneai-nsclc ->
-# http://duneai-nsclc-xnat.tap.dev.embarklabs.ai/v1/models/duneai-nsclc:predict
+# name. Default points at the in-cluster transformer Service so traffic from
+# a kernel inside the xnat namespace stays in-cluster — the public ALB URL
+# would hairpin through the AWS NAT Gateway, whose 350s idle-TCP timeout
+# silently drops the connection while the transformer is mid-inference
+# (>350s wall-clock on brainseg). Override via env var for out-of-cluster
+# kernels, e.g. http://{model}-xnat.tap.dev.embarklabs.ai/v1/models/{model}:predict
 INFERENCE_URL_TEMPLATE = os.environ.get(
     "INFERENCE_URL_TEMPLATE",
-    "http://{model}-xnat.tap.dev.embarklabs.ai/v1/models/{model}:predict",
+    "http://{model}-transformer.xnat/v1/models/{model}:predict",
 )
 
 # KServe scale-to-zero cold starts can take several minutes while the model

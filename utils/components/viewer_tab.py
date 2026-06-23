@@ -9,9 +9,8 @@ from utils.dicom_utils import extract_metadata
 
 _PLACEHOLDER_HTML = (
     "<div style='display:flex;align-items:center;justify-content:center;"
-    "width:100%;min-height:350px;background:transparent;"
-    "color:var(--text-muted);font-size:13px;"
-    "flex-direction:column;gap:8px;'>"
+    "flex-direction:column;gap:8px;"
+    "color:var(--text-muted);font-size:13px;'>"
     "<span style='font-size:36px;opacity:0.4;'>&#128203;</span>"
     "<span>Select a series from the left sidebar</span></div>"
 )
@@ -75,8 +74,10 @@ def build_viewer(state):
     )
     # Wrapping the Image in a Box gives wheel/key events a reliable DOM target.
     # Events attached to <img> are inconsistent across JupyterLab versions.
+    # Placeholder lives inside the container so its flex centering does the
+    # work — no absolute overlay (which broke ipyevents wheel binding).
     image_container = widgets.Box(
-        [image_widget],
+        [image_widget, image_placeholder],
         layout=widgets.Layout(
             display="flex",
             justify_content="center",
@@ -246,16 +247,17 @@ def build_viewer(state):
     # Scroll-wheel + arrow-key nav via ipyevents. Attach to BOTH the Box and
     # the Image — the Box catches bubbled events in JupyterLab, but Voila and
     # some browsers route the wheel directly to the <img> and the Box never
-    # sees it. Two sources, same handler.
+    # sees it. prevent_default_action is intentionally OMITTED: setting it in
+    # ipyevents 2.x against modern browsers can register the wheel listener
+    # as passive and silently drop the event. overflow:hidden on every parent
+    # already kills the default scroll, so we don't need preventDefault.
     _wheel_box = Event(
         source=image_container,
         watched_events=["wheel"],
-        prevent_default_action=True,
     )
     _wheel_img = Event(
         source=image_widget,
         watched_events=["wheel"],
-        prevent_default_action=True,
     )
     _key_event = Event(
         source=image_container,
@@ -280,9 +282,24 @@ def build_viewer(state):
     _wheel_img.on_dom_event(_on_wheel)
     _key_event.on_dom_event(_on_key)
 
+    # Hidden buttons driven by a JS-side wheel listener. ipyevents 'wheel'
+    # is unreliable under Voila / passive-listener browsers; falling back
+    # to button.click() from JS uses only the ipywidgets comm channel that
+    # already works for normal buttons. The listener attaches to the canvas
+    # element by class, so it survives widget re-renders.
+    _wheel_up_btn = widgets.Button(
+        description="", layout=widgets.Layout(display="none"),
+    )
+    _wheel_up_btn.add_class("nbpoc-wheel-up")
+    _wheel_down_btn = widgets.Button(
+        description="", layout=widgets.Layout(display="none"),
+    )
+    _wheel_down_btn.add_class("nbpoc-wheel-down")
+    _wheel_up_btn.on_click(lambda _b: _go_to_slice(state.series_index - 1))
+    _wheel_down_btn.on_click(lambda _b: _go_to_slice(state.series_index + 1))
+
     canvas = widgets.Box(
         [
-            image_placeholder,
             image_container,
             overlay_tl,
             overlay_tr,
@@ -290,13 +307,39 @@ def build_viewer(state):
             overlay_br,
             legend_overlay,
             series_nav,
+            _wheel_up_btn,
+            _wheel_down_btn,
         ],
         layout=widgets.Layout(width="100%", flex="1"),
     )
     canvas.add_class("nbpoc-viewer-canvas")
 
+    _wheel_js = widgets.HTML(value="""
+<script>
+(function() {
+    function setup() {
+        const canvas = document.querySelector('.nbpoc-viewer-canvas');
+        const upBtn = document.querySelector('.nbpoc-wheel-up button');
+        const downBtn = document.querySelector('.nbpoc-wheel-down button');
+        if (!canvas || !upBtn || !downBtn) return setTimeout(setup, 200);
+        if (canvas.dataset.nbpocWheelBound) return;
+        canvas.dataset.nbpocWheelBound = '1';
+        let lastTime = 0;
+        canvas.addEventListener('wheel', function(e) {
+            const now = performance.now();
+            if (now - lastTime < 40) return;
+            lastTime = now;
+            if (e.deltaY > 0) downBtn.click();
+            else if (e.deltaY < 0) upBtn.click();
+        }, { passive: true });
+    }
+    setup();
+})();
+</script>
+""")
+
     viewer_panel = widgets.VBox(
-        [image_label, canvas],
+        [image_label, canvas, _wheel_js],
         layout=widgets.Layout(width="100%", height="100%"),
     )
     viewer_panel.add_class("nbpoc-viewer")
@@ -328,5 +371,8 @@ def build_viewer(state):
         "go_to_slice": _go_to_slice,
         "_wheel_box": _wheel_box,
         "_wheel_img": _wheel_img,
+        "_wheel_up_btn": _wheel_up_btn,
+        "_wheel_down_btn": _wheel_down_btn,
+        "_wheel_js": _wheel_js,
         "_key_event": _key_event,
     }

@@ -402,6 +402,28 @@ def build_seg_viewer(state, viewer):
             entry["checkbox"].disabled = True
             entry["checkbox"].description = f"{entry['name']}  (not a SEG: {e})"
 
+    def _diag_path_for_mask(mask_path: str) -> Path:
+        """Paired diagnostics filename = mask stem + ``_diagnostics.json``."""
+        p = Path(mask_path)
+        return p.with_name(f"{p.stem}_diagnostics.json")
+
+    def _add_to_active_diagnostics(entry):
+        diag_path = _diag_path_for_mask(entry["path"])
+        if not diag_path.is_file():
+            return
+        current = dict(state.active_diagnostics)
+        if current.get(entry["path"]) == str(diag_path):
+            return
+        current[entry["path"]] = str(diag_path)
+        state.active_diagnostics = current
+
+    def _remove_from_active_diagnostics(entry):
+        current = dict(state.active_diagnostics)
+        if entry["path"] not in current:
+            return
+        del current[entry["path"]]
+        state.active_diagnostics = current
+
     def _on_mask_toggle(entry):
         def _handler(change):
             if change["new"]:
@@ -410,8 +432,23 @@ def build_seg_viewer(state, viewer):
                     return
                 if not entry["segment_checkboxes"]:
                     _populate_segments(entry)
+                _add_to_active_diagnostics(entry)
+            else:
+                _remove_from_active_diagnostics(entry)
             _recomposite()
         return _handler
+
+    def _on_active_diagnostics_change(change):
+        old_keys = set((change["old"] or {}).keys())
+        new_keys = set((change["new"] or {}).keys())
+        removed = old_keys - new_keys
+        if not removed:
+            return
+        for entry in _masks:
+            if entry["path"] in removed and entry["checkbox"].value:
+                entry["checkbox"].value = False
+
+    state.observe(_on_active_diagnostics_change, names="active_diagnostics")
 
     def _build_mask_entry(path: Path) -> dict:
         entry: dict = {
@@ -592,11 +629,15 @@ def build_seg_viewer(state, viewer):
         _reset_caches()
         _discover_masks()
         _restore_originals()
+        if legend_target is not None:
+            legend_target.value = ""
 
     def _on_series_datasets_change(_change):
         # series_png_cache is repopulated by file_browser when a new series
         # loads; capture a fresh snapshot before any compositing happens.
         _reset_caches()
+        if legend_target is not None:
+            legend_target.value = ""
 
     def _on_refresh(_btn):
         # Preserve the active overlay set across a rescan by carrying enabled
